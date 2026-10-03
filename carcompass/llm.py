@@ -17,6 +17,7 @@ from .config import MODEL, has_api_key
 from .data.catalog import CITIES, MODEL_BASE
 from .schemas import (
     BUYER_REQUEST_SCHEMA,
+    MEDIATION_SCHEMA,
     CONDITION_REPORT_SCHEMA,
     RISK_NOTE_SCHEMA,
     BuyerRequest,
@@ -31,7 +32,7 @@ _client: anthropic.Anthropic | None = None
 def client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(timeout=60.0, max_retries=1)
+        _client = anthropic.Anthropic(timeout=25.0, max_retries=1)  # never stall a live demo
     return _client
 
 
@@ -220,3 +221,30 @@ def inspect_photos(images: list[tuple[bytes, str]], vehicle_hint: str,
         except (LLMUnavailable, ValueError) as e:
             log.warning("inspect_photos fallback: %s", e)
     return SAVED_CONDITION, "saved"
+
+
+# --- 4. Mediate a price gap -------------------------------------------------------
+
+MEDIATION_SYSTEM = (
+    "You are a neutral deal mediator for a wholesale car auction. The seller's asking price is "
+    "above the top bid. Using only the numbers given (comparable sales, market value, the cost "
+    "of waiting), write a short, respectful reality check to the seller and a short nudge to the "
+    "buyer. Never reveal either side's private limit. No exclamation marks."
+)
+
+
+def mediation_brief(context: dict, demo_safe: bool) -> tuple[dict, str]:
+    if not demo_safe:
+        try:
+            return call_json(MEDIATION_SYSTEM, json.dumps(context), MEDIATION_SCHEMA, effort="low"), "live"
+        except (LLMUnavailable, ValueError) as e:
+            log.warning("mediation_brief fallback: %s", e)
+    comps = context["comparable_sales"]
+    lo, hi = min(c["price"] for c in comps), max(c["price"] for c in comps)
+    return {
+        "to_seller": (f"Similar cars sold for ${lo:,}–${hi:,} in the last few weeks, so ${context['ask']:,} "
+                      f"is above what buyers are paying. Each week unsold costs you about "
+                      f"${context['waiting_cost_per_week']:,} in holding costs and lost value."),
+        "to_buyer": (f"The seller has room to move. Market value is about ${context['market_value']:,}, "
+                     f"so an offer closer to that is likely to close today."),
+    }, "saved"

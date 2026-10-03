@@ -95,3 +95,14 @@ RISK_NOTE_SCHEMA = {
     "required": ["headline", "explanation", "recommendation"],
     "additionalProperties": False,
 }
+
+
+MEDIATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "to_seller": {"type": "string", "description": "2-3 sentences to the seller, plain English"},
+        "to_buyer": {"type": "string", "description": "1-2 sentences to the buyer, plain English"},
+    },
+    "required": ["to_seller", "to_buyer"],
+    "additionalProperties": False,
+}

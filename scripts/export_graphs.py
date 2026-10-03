@@ -10,12 +10,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from carcompass.agents.buyer import build_buyer_graph  # noqa: E402
+from carcompass.agents.deal import build_deal_graph  # noqa: E402
 from carcompass.agents.seller import build_seller_graph  # noqa: E402
 
 OUT = ROOT / "docs" / "graphs"
 OUT.mkdir(parents=True, exist_ok=True)
 
-for name, graph in [("buyer_agent", build_buyer_graph()), ("seller_agent", build_seller_graph())]:
+for name, graph in [("buyer_agent", build_buyer_graph()), ("seller_agent", build_seller_graph()),
+                    ("deal_agent", build_deal_graph())]:
     g = graph.get_graph()
     (OUT / f"{name}.mmd").write_text(g.draw_mermaid())
     try:

@@ -40,3 +40,8 @@ def test_full_demo_click_through():
     click(at, "🚀 List now")
     click(at, "No sale")
     assert any("No car left unsold" in s.value for s in at.success)
+
+    click(at, "Start AI negotiation")
+    assert any("Both accept $13,150" in b.label for b in at.button)
+    click(at, "Both accept")
+    assert any("Deal closed" in s.value for s in at.success)

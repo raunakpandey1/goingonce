@@ -23,6 +23,7 @@ from langgraph.types import interrupt
 
 from .. import store
 from ..llm import inspect_photos as llm_inspect_photos
+from ..negotiation import acv_fees
 from ..tools import best_paths, wish_matches
 
 
@@ -143,7 +144,10 @@ def record_sale(state: SellerState) -> dict:
     price = state["auction"].get("price") or state["preview"]["price"]
     store.notify(state["vehicle"].get("seller_name", "Seller"), f"{state['listing']['id']} sold for ${price:,}",
                  kind="seller")
-    return {"log": [_log("✓", f"Sold for ${price:,}", "Transport and title paperwork start automatically.")]}
+    fees = acv_fees(price, 0)
+    return {"log": [_log("✓", f"Sold for ${price:,}", "Transport and title paperwork start automatically."),
+                    _log("📈", f"ACV earns ${fees['total']:,} on this car, only because it sold",
+                         f"Buyer fee ${fees['buyer_fee']:,} + seller fee ${fees['seller_fee']:,}. An unsold car earns $0.")]}
 
 
 def reoffer_unsold(state: SellerState) -> dict:

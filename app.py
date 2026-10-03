@@ -10,6 +10,9 @@ import html
 import io
 import time
 import uuid
+
+import altair as alt
+import pandas as pd
 from pathlib import Path
 
 import streamlit as st
@@ -18,6 +21,7 @@ from PIL import Image
 
 from carcompass import store
 from carcompass.agents.buyer import build_buyer_graph
+from carcompass.agents.deal import build_deal_graph
 from carcompass.agents.seller import build_seller_graph
 from carcompass.config import MODEL, demo_safe_default, has_api_key
 from carcompass.data.catalog import CITIES, MODEL_BASE
@@ -67,15 +71,17 @@ st.markdown("""
 
 @st.cache_resource
 def graphs():
-    return build_buyer_graph(), build_seller_graph()
+    return build_buyer_graph(), build_seller_graph(), build_deal_graph()
 
 
-BUYER_GRAPH, SELLER_GRAPH = graphs()
+BUYER_GRAPH, SELLER_GRAPH, DEAL_GRAPH = graphs()
 ss = st.session_state
 ss.setdefault("buyer", None)
 ss.setdefault("seller", None)
 ss.setdefault("buyer_action", None)
 ss.setdefault("seller_action", None)
+ss.setdefault("deal", None)
+ss.setdefault("deal_action", None)
 
 
 def esc(s) -> str:
@@ -149,7 +155,7 @@ with st.sidebar:
     st.divider()
     if st.button("↺ Reset demo", use_container_width=True):
         store.reset()
-        for k in ("buyer", "seller", "buyer_action", "seller_action"):
+        for k in ("buyer", "seller", "buyer_action", "seller_action", "deal", "deal_action"):
             ss[k] = None
         st.rerun()
     st.caption("Demo data: 310 synthetic ACV + Copart listings. Bids, trucks and messages are simulated.")
@@ -158,7 +164,8 @@ with st.sidebar:
 st.markdown('<div class="cc-hero"><h1>🧭 CarCompass</h1>'
             '<p>Every car finds its best buyer, across ACV <b>and</b> Copart.</p></div>', unsafe_allow_html=True)
 
-tab_buy, tab_sell, tab_inbox, tab_how = st.tabs(["🛒 Buyer's Agent", "📸 Sell in one photo", "🔔 Agent inbox", "🧠 How it works"])
+tab_buy, tab_sell, tab_deal, tab_inbox, tab_how = st.tabs(
+    ["🛒 Buyer's Agent", "📸 Sell in one photo", "🤝 Close the gap", "🔔 Agent inbox", "🧠 How it works"])
 
 
 # --- Buyer tab ---------------------------------------------------------------
@@ -376,6 +383,120 @@ with tab_sell:
                 st.success("Sold. Transport and title paperwork started.", icon="✅")
 
 
+# --- Close-the-gap tab -------------------------------------------------------
+
+def start_deal():
+    ss.deal_action = "start"
+
+
+def accept_deal():
+    ss.deal_action = "accept"
+
+
+def walk_away():
+    ss.deal_action = "walk"
+
+
+AVATARS = {"mediator": ("Mediator", "🧭"), "seller": ("Seller's agent", "🏷️"), "buyer": ("Buyer's agent", "💰")}
+
+with tab_deal:
+    st.caption("The seller wants more than the top bid. Each side tells its own agent a private limit; "
+               "an AI mediator closes the gap with market data, then the deal closes itself.")
+    in_col, out_col = st.columns([2, 3], gap="large")
+    with in_col:
+        with st.expander("Car: 2020 Toyota Camry LE · 52,000 mi · Buffalo", expanded=False):
+            c1, c2 = st.columns(2)
+            d_year = c1.number_input("Year", 2005, 2026, 2020, key="d_year")
+            d_miles = c2.number_input("Mileage", 0, 400000, 52000, step=1000, key="d_miles")
+            d_models = sorted(f"{mk} {m}" for mk, m in MODEL_BASE)
+            d_mm = st.selectbox("Make & model", d_models, index=d_models.index("Toyota Camry"), key="d_model")
+            d_grade = st.slider("Condition grade", 1.0, 5.0, 4.0, 0.1, key="d_grade")
+        st.markdown("**🏷️ Seller**")
+        a, b = st.columns(2)
+        d_ask = a.number_input("Asking price ($)", 1000, 200000, 15000, step=250, key="d_ask")
+        d_min = b.number_input("Private minimum ($)", 1000, 200000, 12800, step=250, key="d_min",
+                               help="Only the seller's own agent knows this.")
+        d_lien = st.number_input("Loan still owed on the car ($)", 0, 100000, 5000, step=500, key="d_lien")
+        st.markdown("**💰 Buyer**")
+        a, b = st.columns(2)
+        d_bid = a.number_input("Top bid ($)", 1000, 200000, 12000, step=250, key="d_bid")
+        d_max = b.number_input("Private maximum ($)", 1000, 200000, 13400, step=250, key="d_max",
+                               help="Only the buyer's own agent knows this.")
+        d_buyer_city = st.selectbox("Buyer location", list(CITIES), index=list(CITIES).index("Rochester"), key="d_city")
+        st.button("🤝 Start AI negotiation", type="primary", use_container_width=True, on_click=start_deal)
+
+    with out_col:
+        action = ss.deal_action
+        ss.deal_action = None
+        if action == "start":
+            make, model = next((mk, m) for mk, m in MODEL_BASE if f"{mk} {m}" == d_mm)
+            ss.deal = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {},
+                       "payload": {"car": {"year": int(d_year), "make": make, "model": model, "trim": "",
+                                           "mileage": int(d_miles), "grade": float(d_grade), "city": "Buffalo"},
+                                   "seller": "Sarah's Truck Center (Buffalo)", "buyer": "Mike's Motors (Rochester)",
+                                   "buyer_city": d_buyer_city, "ask": int(d_ask), "seller_min": int(d_min),
+                                   "high_bid": int(d_bid), "buyer_max": int(d_max), "lien": int(d_lien),
+                                   "demo_safe": ss.demo_safe}}
+        run = ss.deal
+        if not run:
+            st.markdown("#### What the agents do")
+            st.markdown("1. **Reality check:** compare the ask with recent sales and the cost of waiting\n"
+                        "2. **Negotiate in rounds:** seller's agent and buyer's agent move toward each other, "
+                        "never past their private limits\n"
+                        "3. **Bridge the last gap:** e.g. a truck already heading that way lowers delivery cost\n"
+                        "4. **Close automatically:** escrow payment, transit insurance, loan payoff, e-title, truck, "
+                        "seller payout\n\n"
+                        "ACV earns its fees **only when the car sells**, so every closed gap is revenue.")
+        else:
+            st.markdown("#### Agent activity")
+            box = st.empty()
+            render_log(box, run["log"])
+            config = {"configurable": {"thread_id": run["thread"]}}
+            if action == "start":
+                run_stream(DEAL_GRAPH, run["payload"], config, run, box)
+            elif action in ("accept", "walk") and run["pending"]:
+                run_stream(DEAL_GRAPH, Command(resume={"accepted": action == "accept"}), config, run, box)
+
+            values = run["values"]
+            rounds = values.get("rounds", [])
+            if len(rounds) > 1:
+                df = pd.DataFrame(rounds).rename(columns={"seller": "Seller", "buyer": "Buyer"})
+                df = df.melt("round", var_name="side", value_name="offer")
+                st.markdown("**Offers by round** (the gap closing)")
+                chart = alt.Chart(df).mark_line(point=True, strokeWidth=3).encode(
+                    x=alt.X("round:O", title="Round", axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y("offer:Q", title="Offer ($)", scale=alt.Scale(zero=False)),
+                    color=alt.Color("side:N", title=None,
+                                    scale=alt.Scale(domain=["Seller", "Buyer"], range=["#0969da", "#d4720b"])),
+                    tooltip=["side", "round", alt.Tooltip("offer:Q", format="$,")])
+                st.altair_chart(chart.properties(height=220), use_container_width=True)
+            if values.get("messages"):
+                with st.expander("Negotiation chat", expanded=not run["pending"] is None):
+                    for m in values["messages"]:
+                        name, avatar = AVATARS[m["who"]]
+                        with st.chat_message(name, avatar=avatar):
+                            st.write(m["text"])
+            if run["pending"]:
+                st.markdown(f'<div class="cc-ask">🤝 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
+                a, b, _ = st.columns([2, 1, 2])
+                a.button(f"✅ Both accept ${run['pending']['price']:,}", type="primary",
+                         use_container_width=True, on_click=accept_deal)
+                b.button("Walk away", use_container_width=True, on_click=walk_away)
+            closing = values.get("closing")
+            if closing:
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Deal price", f"${closing['price']:,}", f"+${closing['price'] - values['high_bid']:,} vs bid")
+                m2.metric("Seller payout", f"${closing['seller_payout']:,}", help="After the seller fee and loan payoff")
+                m3.metric("Buyer pays", f"${closing['buyer_pays']:,}",
+                          help="All-in: price, buyer fee, transport and insurance, held in escrow")
+                m4.metric("ACV earns", f"${closing['acv']['total']:,}", "sale-only fees")
+                st.success("Deal closed: payment in escrow, insurance bound, loan paid off, title moving, truck booked.",
+                           icon="✅")
+            elif values.get("deal") is None and values.get("round") and not run["pending"]:
+                st.info("No deal this time. Nobody was pushed past their limit, and the car goes to the next "
+                        "best buyers.", icon="↻")
+
+
 # --- Inbox tab ---------------------------------------------------------------
 
 with tab_inbox:
@@ -412,30 +533,36 @@ GRAPH_DIR = Path(__file__).resolve().parent / "docs" / "graphs"
 def show_graph(name: str, graph) -> None:
     png = GRAPH_DIR / f"{name}.png"
     if png.exists():
-        st.image(str(png), width=380)
+        st.image(str(png), width=330)
     else:  # regenerate with scripts/export_graphs.py
         st.code(graph.get_graph().draw_mermaid(), language="text")
 
 
 with tab_how:
-    st.markdown("#### Two LangGraph agents, one shared memory")
+    st.markdown("#### Three LangGraph agents, one shared memory")
     st.markdown(
         "- **Buyer's agent:** understands a plain-English request → searches ACV + Copart → checks every car's "
         "**Life Passport** → explains anything suspicious → ranks and quotes transport → **waits for your approval** "
         "→ bids, books the truck, starts title checks, and keeps watching for the rest.\n"
         "- **Seller's agent:** reads the photos → compares every way to sell → finds **buyers already waiting** → "
         "lists in one tap and messages them → if there's no sale, re-offers to Copart's global buyers.\n"
+        "- **Deal agent:** when the ask is above the top bid, a mediator negotiates in rounds between the seller's "
+        "and buyer's agents (each keeps its private limit), bridges the last gap, then closes the deal: escrow "
+        "payment, transit insurance, loan payoff, e-title, truck, payout. ACV earns only when the car sells.\n"
         "- **Shared memory:** the buyer's unfilled request becomes a saved wish that the seller's agent matches against.")
     st.markdown("**Where AI is used (Claude):** understanding requests in any language · reading car photos · "
                 "explaining flagged histories.  \n**Plain code (repeatable):** search, history checks, pricing, "
                 "transport, matching.  \n**Safety:** nothing is spent or listed without a human tap; demo-safe mode "
                 "replays saved AI results.")
-    g1, g2 = st.columns(2)
+    g1, g2, g3 = st.columns(3)
     with g1:
         st.markdown("**Buyer's agent graph (LangGraph)**")
         show_graph("buyer_agent", BUYER_GRAPH)
     with g2:
         st.markdown("**Seller's agent graph (LangGraph)**")
         show_graph("seller_agent", SELLER_GRAPH)
+    with g3:
+        st.markdown("**Deal agent graph (LangGraph)**")
+        show_graph("deal_agent", DEAL_GRAPH)
     st.caption("Demo data is synthetic. In production the same tools would call ACV and Copart's inventory, "
                "inspection and title systems.")
