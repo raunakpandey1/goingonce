@@ -15,3 +15,6 @@ carcompass/data/runtime/
 
 # deck build deps
 deck/node_modules/
+
+# Office lock files
+~$*

@@ -26,6 +26,16 @@ Open http://localhost:8501. The sidebar is hidden; click **»** (top left) to op
 
 First-time setup on another machine: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then `cp .env.example .env` and paste the API key. Never commit `.env`.
 
+### ACV-style frontend (React)
+
+An alternate UI that looks like a tool inside an ACV-style marketplace: a GoingOnce assistant panel on the left, marketplace results (vehicle cards with car images) on the right.
+
+```bash
+./run_acv.sh            # builds the React app and serves it + the agent API on http://localhost:8000
+```
+
+For frontend development: `.venv/bin/uvicorn api:app --port 8000` in one terminal, `cd acv-frontend && npm run dev` in another (http://localhost:5173, `/api` is proxied).
+
 ---
 
 ## 2.5-minute demo
@@ -77,6 +87,8 @@ If a judge asks: *"Demo data. In production the same tools would call ACV and Co
 
 ```
 app.py                      Streamlit UI (4 tabs)
+api.py                      HTTP API for the React UI (streams agent steps as Server-Sent Events)
+acv-frontend/               ACV-style React UI (Vite): assistant panel + marketplace cards
 carcompass/
   agents/buyer.py           Buy agent (pauses for approval before bidding)
   agents/seller.py          Sell agent (pauses for "List now" and the auction result)
@@ -90,7 +102,7 @@ carcompass/
   data/catalog.py           Generated marketplace + hand-placed demo cars
 docs/graphs/                Agent diagrams (PNG) for slides
 docs/screenshots/           App screenshots for slides
-tests/                      21 tests, including a click-through of every tab
+tests/                      24 tests, including a click-through of every tab and the API
 ```
 
 - Claude is used for language and photos only; search, history checks, prices, negotiation math and logistics are plain code, so results repeat.
