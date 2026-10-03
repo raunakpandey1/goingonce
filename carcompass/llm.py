@@ -100,22 +100,18 @@ def parse_request(text: str, demo_safe: bool) -> tuple[BuyerRequest, str]:
     return rule_parse(text), "saved"
 
 
-_MODEL_LOOKUP = {re.sub(r"[^a-z0-9]", "", m.lower()): (mk, m) for mk, m in MODEL_BASE}
-
-
 def rule_parse(text: str) -> BuyerRequest:
     """Regex parser used in demo-safe mode. Handles the pitch sentence and close variants."""
     t = text.lower().replace(",", "")
     make = model = None
-    for word in re.findall(r"[a-z0-9\-]+", t):
-        key = re.sub(r"[^a-z0-9]", "", word)
-        for cand in (key, key[:-1] if key.endswith("s") else key, key[:-2] if key.endswith("es") else key):
-            if cand in _MODEL_LOOKUP:
-                make, model = _MODEL_LOOKUP[cand]
-                break
-        if model:
+    for mk, m in sorted(MODEL_BASE, key=lambda k: -len(k[1])):  # longest names first
+        pattern = r"\bram\s*1500" if m == "1500" else r"\b" + re.escape(m.lower()) + r"(?:s|es)?\b"
+        if re.search(pattern, t):
+            make, model = mk, m
             break
-    qty = re.search(r"(?:need|want|buy|find|looking for|get me|source)\s+(\d+)", t) or re.search(r"\b(\d{1,2})\s+[a-z\-]+s\b", t)
+    if not make:
+        make = next((mk for mk, _ in MODEL_BASE if re.search(r"\b" + mk.lower() + r"s?\b", t)), None)
+    qty = re.search(r"(?:need|want|buy|find|looking for|get me|source)\s+(\d+)", t) or re.search(r"^(\d{1,2})\s|\b(\d{1,2})\s+(?:[a-z0-9\-]+\s+){0,2}[a-z0-9\-]+s\b", t)
     years = re.search(r"\b(20[0-2]\d)\s*(?:\+|or newer|and newer|or later)", t)
     year_range = re.search(r"\b(20[0-2]\d)\s*(?:-|to|–)\s*(20[0-2]\d)\b", t)
     price = re.search(r"(?:under|below|less than|max|up to|<)\s*\$?\s*(\d+(?:\.\d+)?)\s*(k)?", t)
@@ -132,7 +128,7 @@ def rule_parse(text: str) -> BuyerRequest:
         max_price=max_price,
         max_mileage=int(miles.group(1)) * (1000 if miles.group(2) else 1) if miles else None,
         title="any" if re.search(r"salvage ok|any title|salvage is fine|rebuilt ok", t) else "clean",
-        quantity=int(qty.group(1)) if qty else 1,
+        quantity=int(next(g for g in qty.groups() if g)) if qty else 1,
         destination_city=city,
         deadline=deadline.group(1).title() if deadline else None,
     )
