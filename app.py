@@ -55,7 +55,8 @@ st.markdown("""
 .cc-ask { border-radius: 12px; padding: .8rem 1rem; font-weight: 700; font-size: 1.05rem; background: rgba(9,105,218,.10); border: 1px solid rgba(9,105,218,.35); margin: .6rem 0; }
 .cc-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .cc-table th, .cc-table td { padding: .45rem .5rem; border-bottom: 1px solid var(--cc-border); text-align: right; }
-.cc-table th:first-child, .cc-table td:first-child { text-align: left; }
+.cc-table th:first-child, .cc-table td:first-child { text-align: left; white-space: normal; }
+.cc-table td, .cc-table th { white-space: nowrap; }
 .cc-table tr.best td { font-weight: 800; background: rgba(26,127,55,.12); }
 .cc-note { font-size: .8rem; opacity: .7; }
 </style>
@@ -342,11 +343,12 @@ with tab_sell:
                 rows = "".join(
                     f'<tr class="{"best" if r["best"] else ""}"><td>{"✅ " if r["best"] else ""}{r["channel"]}'
                     f'<div class="cc-note">{r["note"]}</div></td><td>${r["gross"]:,}</td>'
-                    f'<td>−${r["fees"] + r["transport"]:,}</td><td>{r["days"]} d (−${r["holding"]:,})</td>'
+                    f'<td>−${r["fees"] + r["transport"] + r["holding"]:,}</td><td>{r["days"]} days</td>'
                     f'<td><b>${r["net"]:,}</b></td></tr>' for r in paths["rows"])
                 st.markdown("**Where you make the most money**")
-                st.markdown(f'<table class="cc-table"><tr><th>Option</th><th>Sale</th><th>Fees</th>'
-                            f'<th>Wait</th><th>You keep</th></tr>{rows}</table>', unsafe_allow_html=True)
+                st.markdown(f'<table class="cc-table"><tr><th>Option</th><th>Sale</th><th>Costs</th>'
+                            f'<th>Wait</th><th>You keep</th></tr>{rows}</table>'
+                            '<div class="cc-note">Costs = fees + transport + $28/day while the car waits to sell.</div>', unsafe_allow_html=True)
             waiting = values.get("waiting_buyers")
             if waiting is not None and "preview" in values:
                 if waiting:
@@ -359,7 +361,8 @@ with tab_sell:
             pending = run["pending"]
             if pending and "best" in pending:
                 a, b, _ = st.columns([2, 1, 2])
-                a.button(f"🚀 List now ({pending['best']})", type="primary", use_container_width=True, on_click=list_now)
+                a.button("🚀 List now", type="primary", use_container_width=True, on_click=list_now,
+                         help=f"Lists via {pending['best']}")
                 b.button("Save draft", use_container_width=True, on_click=keep_draft)
             elif pending and "listing_id" in pending:
                 st.markdown(f'<div class="cc-ask">⏱ {pending["listing_id"]} is live. Simulate the auction result:</div>',
