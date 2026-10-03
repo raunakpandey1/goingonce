@@ -12,3 +12,6 @@ __pycache__/
 carcompass/data/runtime/
 
 .DS_Store
+
+# deck build deps
+deck/node_modules/
