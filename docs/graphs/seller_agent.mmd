@@ -1,0 +1,30 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	inspect_photos(inspect_photos)
+	price_paths(price_paths)
+	pre_match(pre_match)
+	await_listing(await_listing)
+	publish_listing(publish_listing)
+	await_auction_result(await_auction_result)
+	record_sale(record_sale)
+	reoffer_unsold(reoffer_unsold)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> inspect_photos;
+	await_auction_result -.-> __end__;
+	await_auction_result -.-> record_sale;
+	await_auction_result -.-> reoffer_unsold;
+	await_listing --> publish_listing;
+	inspect_photos --> price_paths;
+	pre_match --> await_listing;
+	price_paths --> pre_match;
+	publish_listing --> await_auction_result;
+	record_sale --> __end__;
+	reoffer_unsold --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

@@ -1,0 +1,31 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	understand_request(understand_request)
+	search_marketplaces(search_marketplaces)
+	check_life_passports(check_life_passports)
+	explain_flags(explain_flags)
+	rank_and_quote(rank_and_quote)
+	widen_search(widen_search)
+	await_approval(await_approval)
+	execute(execute)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> understand_request;
+	await_approval --> execute;
+	check_life_passports -.-> explain_flags;
+	check_life_passports -.-> rank_and_quote;
+	explain_flags --> rank_and_quote;
+	rank_and_quote -.-> await_approval;
+	rank_and_quote -.-> execute;
+	rank_and_quote -.-> widen_search;
+	search_marketplaces --> check_life_passports;
+	understand_request --> search_marketplaces;
+	widen_search --> search_marketplaces;
+	execute --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
