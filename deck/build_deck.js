@@ -110,6 +110,7 @@ async function main() {
     scale: await icon(fa.FaBalanceScale, HEX.lt1),
     leaf: await icon(fa.FaLeaf, HEX.lt1),
     person: await icon(fa.FaUserCheck, HEX.lt1),
+    check: await icon(fa.FaCheckCircle, HEX.accent1),
   };
 
   // --- 1. Title ------------------------------------------------------------------
@@ -194,17 +195,17 @@ async function main() {
     s2.addText([{ text: name + ": ", options: { bold: true } }, { text: desc }], { x: bodyX(2) + 0.42, y, w: bodyW - 0.42, h: 0.62, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: `Action ${name} text` });
   });
 
-  s2.addText("In our demo:", { x: bodyX(3), y: bodyY, w: bodyW, h: 0.32, fontSize: 14, italic: true, color: C.text2, margin: 0, isTextBox: true, objectName: "Result intro" });
+  s2.addText("What changes:", { x: bodyX(3), y: bodyY, w: bodyW, h: 0.55, fontSize: 14, italic: true, color: C.text2, valign: "top", margin: 0, isTextBox: true, objectName: "Result intro" });
   const results = [
-    ["1", "flood car caught before purchase"],
-    ["3", "buyers waiting before the auction"],
-    ["$13,150", "deal closed from a $3,000 gap"],
-    ["+$349K", "for one 120-car fleet"],
+    "Hidden damage caught before anyone buys",
+    "Buyers lined up before the auction starts",
+    "Price gaps closed instead of dead deals",
+    "Fleets sold without flooding a market",
   ];
-  results.forEach(([num, cap], k) => {
-    const y = bodyY + 0.45 + k * 0.84;
-    s2.addText(num, { x: bodyX(3), y, w: bodyW, h: 0.42, fontSize: 24, bold: true, color: C.accent1, fontFace: "+mj-lt", margin: 0, isTextBox: true, objectName: `Result ${k + 1} number` });
-    s2.addText(cap, { x: bodyX(3), y: y + 0.42, w: bodyW, h: 0.3, fontSize: 12, color: C.text1, margin: 0, isTextBox: true, objectName: `Result ${k + 1} caption` });
+  results.forEach((text, k) => {
+    const y = bodyY + 0.68 + k * 0.84;
+    s2.addImage({ data: I.check, x: bodyX(3), y: y + 0.04, w: 0.3, h: 0.3, objectName: `Result ${k + 1} icon` });
+    s2.addText(text, { x: bodyX(3) + 0.42, y, w: bodyW - 0.42, h: 0.62, fontSize: 14, color: C.text1, valign: "top", margin: 0, isTextBox: true, objectName: `Result ${k + 1} text` });
   });
   s2.addNotes(
     "0:15–1:15\n" +
@@ -212,7 +213,7 @@ async function main() {
     "But cars still go unsold: the right buyer isn't watching, the price doesn't meet, or hidden damage scares buyers off. And ACV only earns on a sale.\n" +
     "Task: turn more listings into sales, catch hidden damage before anyone buys, and move cars at the lowest cost.\n" +
     "Action: GoingOnce is four AI agents that do the work while people approve every money step: Buy, Sell, Negotiate, Fleet.\n" +
-    "Result, in our demo: a flood car caught before purchase, three buyers lined up before the auction, a $3,000 price gap closed, and $349K more for one fleet. Let's see it."
+    "Result: hidden damage is caught before anyone buys, buyers are lined up before the auction starts, price gaps get closed instead of killing the deal, and fleets sell without flooding a market. Let's see it."
   );
 
   // --- 3. Demo video (area left blank for the recording) ------------------------------
@@ -239,7 +240,7 @@ async function main() {
     "Buy: 'Reason one: buyers can't find the right car, or can't trust it. It searched ACV and Copart and checked every car's history. This cheap one was flooded and hidden behind a clean title. Nothing is bought without his OK.'\n" +
     "Sell: 'Reason two: the right buyer isn't watching during the auction. AI wrote the condition report, ACV pays her the most, and three buyers are already waiting, including the dealer we just saw.'\n" +
     "Negotiate: 'Reason three: the seller wants $15,000, the top bid is $12,000. The AI shows real market prices, they meet in three rounds, and it closes itself: payment, insurance, loan payoff, title, truck.'\n" +
-    "Fleet: 'Reason four is scale. 120 rental cars in full trucks to seven cities: $349K more, $108 a car to ship.'\n" +
+    "Fleet: 'Reason four is scale. A rental company sells 120 similar cars at once. The agent spreads them across cities in full trucks, so prices hold and shipping stays cheap.'\n" +
     "To add the video: Insert > Video > Video from File, then drag it over the dark area on the left."
   );
 
@@ -250,7 +251,7 @@ async function main() {
   const goods = [
     ["Protects families from fraud", "Catches flood-damaged cars, washed titles and rolled-back odometers before anyone buys them.", I.shield],
     ["Fair deals for both sides", "Each side keeps its own limit. The AI shows real market prices and never pushes anyone past their limit.", I.scale],
-    ["Less waste, fewer emissions", "14 full trucks instead of 98 single trips. Unsold cars reach buyers worldwide instead of the scrapyard.", I.leaf],
+    ["Less waste, fewer emissions", "Full truckloads instead of single trips. Unsold cars reach buyers worldwide instead of the scrapyard.", I.leaf],
     ["People stay in control", "Every step is shown. The AI never spends, lists or signs anything without a person's OK.", I.person],
   ];
   const gW = (W - 2 * M - 0.4) / 2, gH = 2.15;
@@ -270,48 +271,49 @@ async function main() {
     "And people stay in control: the AI never spends money or signs anything without a person's OK."
   );
 
-  // --- 5. Impact + what's next --------------------------------------------------------
-  pres.addSection({ title: "Impact and next steps" });
-  const s5 = pres.addSlide({ masterName: "GO Content Dark", sectionTitle: "Impact and next steps" });
-  s5.addText("Why it matters for ACV, and what's next", { placeholder: "title" });
-  const stats = [
-    ["$876", "ACV earns on a deal that would have died"],
-    ["+$349K", "more for one 120-car fleet"],
-    ["66%", "lower transport cost per car"],
+  // --- 5. What's new: four agents, four problems -------------------------------------
+  pres.addSection({ title: "What's new" });
+  const s5 = pres.addSlide({ masterName: "GO Content Dark", sectionTitle: "What's new" });
+  s5.addText("What's new: four agents, four problems solved", { placeholder: "title" });
+  const novel = [
+    ["Buy", I.buyW, "Buyers scroll thousands of listings and can't see a car's full past.",
+     "One request searches both marketplaces, and the history check joins ACV + Copart records to catch washed titles."],
+    ["Sell", I.sellW, "The right buyer often misses the 20-minute auction.",
+     "The car finds its buyer: saved requests are matched and alerted before the auction starts."],
+    ["Negotiate", I.dealW, "When the ask is above the top bid, the sale just dies.",
+     "An AI mediator works with each side's private limit, then closes the deal: payment, insurance, loan payoff, title, truck."],
+    ["Fleet", I.fleetW, "Hundreds of similar cars at once crash prices, and single trips eat the margin.",
+     "Plans where every truckload goes, market by market and week by week, so prices hold."],
   ];
-  stats.forEach(([num, cap], k) => {
-    const y = 1.6 + k * 1.3;
-    s5.addText(num, { x: M, y, w: 5.4, h: 0.8, fontSize: 48, bold: true, color: C.accent2, fontFace: "+mj-lt", margin: 0, isTextBox: true, objectName: `Stat ${k + 1} number` });
-    s5.addText(cap, { x: M, y: y + 0.78, w: 5.4, h: 0.36, fontSize: 15, color: C.background1, margin: 0, isTextBox: true, objectName: `Stat ${k + 1} caption` });
+  const nW = (W - 2 * M - 3 * 0.3) / 4, nY = 1.5, nH = 3.95;
+  novel.forEach(([name, data, problem, fresh], k) => {
+    const x = M + k * (nW + 0.3);
+    s5.addShape(S.roundRect, { x, y: nY, w: nW, h: nH, rectRadius: 0.12, fill: { color: C.accent6 }, line: { color: C.accent6, width: 0 }, objectName: `${name} card` });
+    iconCircle(s5, data, x + 0.25, nY + 0.25, 0.62, C.accent1, `${name} agent`);
+    s5.addText(name, { x: x + 1.0, y: nY + 0.25, w: nW - 1.1, h: 0.62, fontSize: 20, bold: true, color: C.background1, valign: "middle", margin: 0, isTextBox: true, objectName: `${name} heading` });
+    s5.addText("THE PROBLEM", { x: x + 0.25, y: nY + 1.07, w: nW - 0.5, h: 0.26, fontSize: 11, bold: true, color: C.background2, charSpacing: 2, margin: 0, isTextBox: true, objectName: `${name} problem label` });
+    s5.addText(problem, { x: x + 0.25, y: nY + 1.35, w: nW - 0.5, h: 0.9, fontSize: 14, color: C.background2, valign: "top", margin: 0, isTextBox: true, objectName: `${name} problem` });
+    s5.addText("WHAT'S NEW", { x: x + 0.25, y: nY + 2.3, w: nW - 0.5, h: 0.26, fontSize: 11, bold: true, color: C.accent2, charSpacing: 2, margin: 0, isTextBox: true, objectName: `${name} new label` });
+    s5.addText(fresh, { x: x + 0.25, y: nY + 2.58, w: nW - 0.5, h: 1.3, fontSize: 14, color: C.background1, valign: "top", margin: 0, isTextBox: true, objectName: `${name} new` });
   });
-  s5.addText("Numbers from our demo data", { x: M, y: 5.45, w: 5.4, h: 0.3, fontSize: 11, italic: true, color: C.background2, margin: 0, isTextBox: true, objectName: "Stats note" });
-
-  const rx = 6.9;
-  const road = [
-    ["Today", "4 working AI agents on demo data"],
-    ["Next", "Connect to ACV + Copart inventory, inspections, financing and transport"],
-    ["Then", "Car Health Score for lenders and insurers, more overseas buyers, consumer sellers"],
-  ];
-  s5.addShape(S.line, { x: rx + 0.3, y: 2.0, w: 0, h: 2.6, line: { color: C.accent6, width: 3 }, objectName: "Roadmap connector" });
-  road.forEach(([when, what], k) => {
-    const y = 1.7 + k * 1.3;
-    s5.addShape(S.ellipse, { x: rx, y, w: 0.6, h: 0.6, fill: { color: C.accent1 }, line: { color: C.accent1, width: 0 }, objectName: `Roadmap ${when} circle` });
-    s5.addText(String(k + 1), { x: rx, y, w: 0.6, h: 0.6, fontSize: 18, bold: true, color: C.background1, align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: `Roadmap ${when} number` });
-    s5.addText(when, { x: rx + 0.85, y: y - 0.02, w: W - M - rx - 0.85, h: 0.36, fontSize: 18, bold: true, color: C.background1, margin: 0, isTextBox: true, objectName: `Roadmap ${when} heading` });
-    s5.addText(what, { x: rx + 0.85, y: y + 0.36, w: W - M - rx - 0.85, h: 0.75, fontSize: 14, color: C.background2, valign: "top", margin: 0, isTextBox: true, objectName: `Roadmap ${when} text` });
-  });
-
+  s5.addText([
+    { text: "Next: ", options: { bold: true, color: C.accent2 } },
+    { text: "connect to ACV + Copart inventory, inspections, financing and transport.  ", options: { color: C.background1 } },
+    { text: "Then: ", options: { bold: true, color: C.accent2 } },
+    { text: "a Car Health Score for lenders and insurers.", options: { color: C.background1 } },
+  ], { x: M, y: 5.62, w: W - 2 * M, h: 0.38, fontSize: 14, margin: 0, isTextBox: true, objectName: "Roadmap line" });
   s5.addText([
     { text: "Going once, going twice… ", options: { color: C.background1 } },
     { text: "SOLD.", options: { color: C.accent1, bold: true } },
-  ], { x: M, y: 5.95, w: W - 2 * M, h: 0.62, fontSize: 30, italic: true, fontFace: "+mj-lt", align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: "Closing line" });
-  s5.addText("Shaped by feedback from ACV mentors at the hackathon", { x: M, y: 6.55, w: W - 2 * M, h: 0.32, fontSize: 12, color: C.background2, align: "center", margin: 0, isTextBox: true, objectName: "Mentor note" });
+  ], { x: M, y: 6.12, w: W - 2 * M, h: 0.62, fontSize: 30, italic: true, fontFace: "+mj-lt", align: "center", valign: "middle", margin: 0, isTextBox: true, objectName: "Closing line" });
   s5.addNotes(
     "4:25–5:00\n" +
-    "For ACV: every rescued deal is revenue that would have been zero, like the $876 in our demo, and fleets earn far more with lower transport. " +
-    "Today it's four working agents on demo data. Next, connect them to ACV and Copart's real inventory, inspections, financing and transport. " +
-    "Then, a Car Health Score that lenders and insurers can use, and more buyers worldwide. " +
-    "We shaped this with feedback from ACV's mentors. Going once, going twice... sold. Thank you."
+    "What's new? Buy joins ACV and Copart records, so it catches title-washed cars no single company can see. " +
+    "Sell flips the auction: the car finds its buyer before the auction even starts. " +
+    "Negotiate keeps each side's limit private, closes the gap, and then closes the deal on its own. " +
+    "Fleet plans where every truckload goes, so a big fleet sale doesn't crash prices. " +
+    "Next, we connect it to ACV and Copart's real systems, then build a Car Health Score for lenders and insurers. " +
+    "Going once, going twice... sold. Thank you."
   );
 
   await pres.writeFile({ fileName: OUT });
