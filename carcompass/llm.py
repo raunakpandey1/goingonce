@@ -19,6 +19,7 @@ from .schemas import (
     BUYER_REQUEST_SCHEMA,
     MEDIATION_SCHEMA,
     CONDITION_REPORT_SCHEMA,
+    FLEET_SUMMARY_SCHEMA,
     RISK_NOTE_SCHEMA,
     BuyerRequest,
     ConditionReport,
@@ -248,3 +249,26 @@ def mediation_brief(context: dict, demo_safe: bool) -> tuple[dict, str]:
         "to_buyer": (f"The seller has room to move. Market value is about ${context['market_value']:,}, "
                      f"so an offer closer to that is likely to close today."),
     }, "saved"
+
+
+# --- 5. Explain a fleet distribution plan --------------------------------------------
+
+FLEET_SYSTEM = (
+    "You explain a car-distribution plan to a rental fleet's remarketing manager. Use only the "
+    "numbers given. Say where the cars go, why spreading them out protects the price, and what "
+    "full truckloads save versus shipping one by one. Plain English, no exclamation marks."
+)
+
+
+def fleet_summary(context: dict, demo_safe: bool) -> tuple[str, str]:
+    if not demo_safe:
+        try:
+            return call_json(FLEET_SYSTEM, json.dumps(context), FLEET_SUMMARY_SCHEMA, effort="low")["summary"], "live"
+        except (LLMUnavailable, ValueError, KeyError) as e:
+            log.warning("fleet_summary fallback: %s", e)
+    top = ", ".join(r["to"] for r in context["top_routes"][:3])
+    return (f"Your {context['cars']} cars go to {context['markets']} markets, mostly {top}, so no single "
+            f"auction gets more similar cars than it can absorb at full price. That earns about "
+            f"${context['gain_vs_dump']:,} more than selling everything at your local lanes. Grouping cars into "
+            f"{context['trucks']} full truckloads keeps transport near ${context['transport_per_car']} per car "
+            f"instead of ${context['one_by_one_transport_per_car']} shipping them one by one."), "saved"

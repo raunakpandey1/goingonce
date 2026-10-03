@@ -22,9 +22,11 @@ from PIL import Image
 from carcompass import store
 from carcompass.agents.buyer import build_buyer_graph
 from carcompass.agents.deal import build_deal_graph
+from carcompass.agents.fleet import build_fleet_graph
 from carcompass.agents.seller import build_seller_graph
 from carcompass.config import MODEL, demo_safe_default, has_api_key
 from carcompass.data.catalog import CITIES, MODEL_BASE
+from carcompass.fleet import FLEET_MODELS
 
 PITCH = "Need 5 Camrys, 2018+, under $12K, clean title, delivered to Rochester by Friday."
 
@@ -71,10 +73,10 @@ st.markdown("""
 
 @st.cache_resource
 def graphs():
-    return build_buyer_graph(), build_seller_graph(), build_deal_graph()
+    return build_buyer_graph(), build_seller_graph(), build_deal_graph(), build_fleet_graph()
 
 
-BUYER_GRAPH, SELLER_GRAPH, DEAL_GRAPH = graphs()
+BUYER_GRAPH, SELLER_GRAPH, DEAL_GRAPH, FLEET_GRAPH = graphs()
 ss = st.session_state
 ss.setdefault("buyer", None)
 ss.setdefault("seller", None)
@@ -82,6 +84,8 @@ ss.setdefault("buyer_action", None)
 ss.setdefault("seller_action", None)
 ss.setdefault("deal", None)
 ss.setdefault("deal_action", None)
+ss.setdefault("fleet", None)
+ss.setdefault("fleet_action", None)
 
 
 def esc(s) -> str:
@@ -155,7 +159,7 @@ with st.sidebar:
     st.divider()
     if st.button("↺ Reset demo", use_container_width=True):
         store.reset()
-        for k in ("buyer", "seller", "buyer_action", "seller_action", "deal", "deal_action"):
+        for k in ("buyer", "seller", "buyer_action", "seller_action", "deal", "deal_action", "fleet", "fleet_action"):
             ss[k] = None
         st.rerun()
     st.caption("Demo data: 310 synthetic ACV + Copart listings. Bids, trucks and messages are simulated.")
@@ -164,8 +168,8 @@ with st.sidebar:
 st.markdown('<div class="cc-hero"><h1>🧭 CarCompass</h1>'
             '<p>Every car finds its best buyer, across ACV <b>and</b> Copart.</p></div>', unsafe_allow_html=True)
 
-tab_buy, tab_sell, tab_deal, tab_inbox, tab_how = st.tabs(
-    ["🛒 Buyer's Agent", "📸 Sell in one photo", "🤝 Close the gap", "🔔 Agent inbox", "🧠 How it works"])
+tab_buy, tab_sell, tab_deal, tab_fleet, tab_inbox, tab_how = st.tabs(
+    ["🛒 Buyer's Agent", "📸 Sell in one photo", "🤝 Close the gap", "🚚 Fleet", "🔔 Agent inbox", "🧠 How it works"])
 
 
 # --- Buyer tab ---------------------------------------------------------------
@@ -497,6 +501,107 @@ with tab_deal:
                         "best buyers.", icon="↻")
 
 
+# --- Fleet tab ---------------------------------------------------------------
+
+def start_fleet():
+    ss.fleet_action = "start"
+
+
+def approve_fleet():
+    ss.fleet_action = "approve"
+
+
+def reject_fleet():
+    ss.fleet_action = "reject"
+
+
+FLEET_LABELS = [f"{mk} {m}" for mk, m in FLEET_MODELS]
+
+with tab_fleet:
+    st.caption("Rental companies sell hundreds of similar 2–3-year-old cars at once. Flooding one auction crushes the "
+               "price, and shipping cars one by one eats the margin. The fleet agent spreads the cars across markets "
+               "and sends full car-hauler loads.")
+    in_col, out_col = st.columns([2, 3], gap="large")
+    with in_col:
+        st.text_input("Fleet seller", "Rental fleet (demo)", key="f_name")
+        f_count = st.slider("Cars to sell", 30, 240, 120, 10, key="f_count")
+        f_lots = st.multiselect("Fleet lots (where the cars are now)", list(CITIES),
+                                default=["Buffalo", "Rochester", "Albany"], key="f_lots")
+        f_models = st.multiselect("Models (2023, similar condition)", FLEET_LABELS, default=FLEET_LABELS[:3],
+                                  key="f_models")
+        f_weeks = st.slider("Sell over how many weeks", 1, 4, 2, key="f_weeks")
+        st.button("🚚 Plan distribution", type="primary", use_container_width=True, on_click=start_fleet,
+                  disabled=not (f_lots and f_models))
+
+    with out_col:
+        action = ss.fleet_action
+        ss.fleet_action = None
+        if action == "start":
+            ss.fleet = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {},
+                        "payload": {"fleet_name": ss.f_name, "count": int(f_count), "lots": list(f_lots),
+                                    "models": [list(FLEET_MODELS[FLEET_LABELS.index(m)]) for m in f_models],
+                                    "weeks": int(f_weeks), "demo_safe": ss.demo_safe}}
+        run = ss.fleet
+        if not run:
+            st.markdown("#### What the agent does")
+            st.markdown("1. **Takes in the batch:** how many cars, which models, which lots\n"
+                        "2. **Forecasts demand:** how many similar cars each market absorbs at full price\n"
+                        "3. **Optimizes distribution:** full truckloads (9 cars) to nearby markets with demand, "
+                        "spread over the weeks\n"
+                        "4. **Compares** against dumping at the local auction and shipping one by one\n"
+                        "5. **After approval:** staggers auctions, books car haulers, alerts waiting buyers")
+        else:
+            st.markdown("#### Agent activity")
+            box = st.empty()
+            render_log(box, run["log"])
+            config = {"configurable": {"thread_id": run["thread"]}}
+            if action == "start":
+                run_stream(FLEET_GRAPH, run["payload"], config, run, box)
+            elif action in ("approve", "reject") and run["pending"]:
+                run_stream(FLEET_GRAPH, Command(resume={"approved": action == "approve"}), config, run, box)
+
+            values = run["values"]
+            plan, base = values.get("plan"), values.get("baselines")
+            if plan and base:
+                trucks = sum(1 for l in plan["loads"] if l["truck"])
+                m1, m2, m3, m4 = st.columns(4)
+                gain = plan["net"] - base["dump"]["net"]
+                m1.metric("Extra vs dumping", f"+${gain / 1000:,.0f}K", f"+{plan['net'] / base['dump']['net'] - 1:.0%}",
+                          help=f"+${gain:,} more for the fleet than selling everything at the local auctions")
+                m2.metric("Transport / car", f"${plan['transport_per_car']}",
+                          f"-${base['single']['transport_per_car'] - plan['transport_per_car']} vs 1-by-1",
+                          delta_color="inverse")
+                m3.metric("Truckloads", trucks, f"vs {base['single']['trucks']} solo", delta_color="off",
+                          help=f"{trucks} full car-hauler loads instead of {base['single']['trucks']} single-car moves")
+                m4.metric("Markets", plan["markets"], help="Destination markets used")
+                rows = "".join(
+                    f'<tr class="{"best" if p is plan else ""}"><td>{"✅ " if p is plan else ""}{p["name"]}</td>'
+                    f'<td>${p["avg_price"]:,}</td><td>${p["transport_per_car"]:,}</td><td><b>${p["net"]:,}</b></td></tr>'
+                    for p in (base["dump"], base["single"], plan))
+                st.markdown(f'<table class="cc-table"><tr><th>Plan</th><th>Avg sale</th><th>Transport/car</th>'
+                            f'<th>Net to fleet</th></tr>{rows}</table>', unsafe_allow_html=True)
+                bars = pd.DataFrame([{"market": l["to"], "week": f"Week {l['week']}", "cars": l["cars"]}
+                                     for l in plan["loads"]])
+                st.markdown("**Where the cars go**")
+                st.altair_chart(alt.Chart(bars).mark_bar().encode(
+                    x=alt.X("sum(cars):Q", title="Cars"),
+                    y=alt.Y("market:N", sort="-x", title=None),
+                    color=alt.Color("week:N", title=None, scale=alt.Scale(range=["#0969da", "#d4720b", "#8250df", "#1a7f37"])),
+                    tooltip=["market", "week", "sum(cars)"]).properties(height=230), use_container_width=True)
+                with st.expander("Routes (lot → market)"):
+                    st.dataframe(pd.DataFrame([{"From": r["from"], "To": r["to"], "Cars": r["cars"],
+                                                "Trucks": r["trucks"], "Miles": r["miles"], "$ per car": r["per_car"],
+                                                "When": r["weeks"]} for r in values["routes"]]),
+                                 hide_index=True, use_container_width=True)
+            if run["pending"]:
+                st.markdown(f'<div class="cc-ask">🚚 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
+                a, b, _ = st.columns([2, 1, 2])
+                a.button("✅ Approve plan", type="primary", use_container_width=True, on_click=approve_fleet)
+                b.button("Not now", use_container_width=True, on_click=reject_fleet)
+            elif values.get("schedule"):
+                st.success("Plan approved: auctions staggered, car haulers booked, waiting buyers alerted.", icon="✅")
+
+
 # --- Inbox tab ---------------------------------------------------------------
 
 with tab_inbox:
@@ -533,13 +638,13 @@ GRAPH_DIR = Path(__file__).resolve().parent / "docs" / "graphs"
 def show_graph(name: str, graph) -> None:
     png = GRAPH_DIR / f"{name}.png"
     if png.exists():
-        st.image(str(png), width=330)
+        st.image(str(png), use_container_width=True)
     else:  # regenerate with scripts/export_graphs.py
         st.code(graph.get_graph().draw_mermaid(), language="text")
 
 
 with tab_how:
-    st.markdown("#### Three LangGraph agents, one shared memory")
+    st.markdown("#### Four LangGraph agents, one shared memory")
     st.markdown(
         "- **Buyer's agent:** understands a plain-English request → searches ACV + Copart → checks every car's "
         "**Life Passport** → explains anything suspicious → ranks and quotes transport → **waits for your approval** "
@@ -549,20 +654,18 @@ with tab_how:
         "- **Deal agent:** when the ask is above the top bid, a mediator negotiates in rounds between the seller's "
         "and buyer's agents (each keeps its private limit), bridges the last gap, then closes the deal: escrow "
         "payment, transit insurance, loan payoff, e-title, truck, payout. ACV earns only when the car sells.\n"
+        "- **Fleet agent:** takes a rental fleet's batch of similar cars, forecasts what each market absorbs, and "
+        "sends full truckloads to nearby markets over the weeks, so prices hold and transport stays low.\n"
         "- **Shared memory:** the buyer's unfilled request becomes a saved wish that the seller's agent matches against.")
     st.markdown("**Where AI is used (Claude):** understanding requests in any language · reading car photos · "
                 "explaining flagged histories.  \n**Plain code (repeatable):** search, history checks, pricing, "
                 "transport, matching.  \n**Safety:** nothing is spent or listed without a human tap; demo-safe mode "
                 "replays saved AI results.")
-    g1, g2, g3 = st.columns(3)
-    with g1:
-        st.markdown("**Buyer's agent graph (LangGraph)**")
-        show_graph("buyer_agent", BUYER_GRAPH)
-    with g2:
-        st.markdown("**Seller's agent graph (LangGraph)**")
-        show_graph("seller_agent", SELLER_GRAPH)
-    with g3:
-        st.markdown("**Deal agent graph (LangGraph)**")
-        show_graph("deal_agent", DEAL_GRAPH)
+    graph_list = [("Buyer's agent", "buyer_agent", BUYER_GRAPH), ("Seller's agent", "seller_agent", SELLER_GRAPH),
+                  ("Deal agent", "deal_agent", DEAL_GRAPH), ("Fleet agent", "fleet_agent", FLEET_GRAPH)]
+    for col, (title, name, graph) in zip(st.columns(4), graph_list):
+        with col:
+            st.markdown(f"**{title}**")
+            show_graph(name, graph)
     st.caption("Demo data is synthetic. In production the same tools would call ACV and Copart's inventory, "
                "inspection and title systems.")

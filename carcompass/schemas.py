@@ -106,3 +106,13 @@ MEDIATION_SCHEMA = {
     "required": ["to_seller", "to_buyer"],
     "additionalProperties": False,
 }
+
+
+FLEET_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string", "description": "3 short sentences for a fleet manager, plain English"},
+    },
+    "required": ["summary"],
+    "additionalProperties": False,
+}
