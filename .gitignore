@@ -1,0 +1,14 @@
+# secrets
+.env
+.streamlit/secrets.toml
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime state (saved wishes, listings, notifications)
+carcompass/data/runtime/
+
+.DS_Store
