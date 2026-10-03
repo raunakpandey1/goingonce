@@ -60,8 +60,7 @@ def inspect_photos(state: SellerState) -> dict:
     n = len(images)
     what = f"{n} photo{'s' * (n != 1)}" if n else "the sample photos"
     return {"condition": report.model_dump(), "condition_source": source,
-            "log": [_log("✓", f"Wrote the condition report from {what}: grade {report.condition_grade:.1f}/5",
-                         report.summary, ai=source)]}
+            "log": [_log("✓", f"Read {what}: condition {report.condition_grade:.1f}/5", ai=source)]}
 
 
 def price_paths(state: SellerState) -> dict:
@@ -71,10 +70,8 @@ def price_paths(state: SellerState) -> dict:
     best = next(r for r in result["rows"] if r["best"])
     runner_up = sorted(result["rows"], key=lambda r: r["net"], reverse=True)[1]
     return {"paths": result,
-            "log": [_log("✓", f"Compared 4 ways to sell → best: {best['channel']} "
-                              f"(${best['net']:,} in your pocket)",
-                         f"${best['net'] - runner_up['net']:,} more than {runner_up['channel'].lower()}, "
-                         "after fees, transport and days waiting.")]}
+            "log": [_log("✓", f"Best way to sell: {best['channel']} (${best['net']:,})",
+                         f"${best['net'] - runner_up['net']:,} more than {runner_up['channel'].lower()}")]}
 
 
 def pre_match(state: SellerState) -> dict:
@@ -93,11 +90,9 @@ def pre_match(state: SellerState) -> dict:
                             "quantity": wish.get("quantity", 1)})
     n = len(waiting)
     if n:
-        line = _log("🔔", f"{n} buyer{'s are' if n != 1 else ' is'} already waiting for a car like this",
-                    " · ".join(f"{w['buyer']} (up to ${w['max_price']:,})" if w.get("max_price") else w["buyer"]
-                               for w in waiting))
+        line = _log("🔔", f"{n} buyer{'s are' if n != 1 else ' is'} already waiting for this car")
     else:
-        line = _log("•", "No saved buyer requests match yet", "The auction will run as normal.")
+        line = _log("•", "No waiting buyers yet")
     return {"preview": preview, "waiting_buyers": waiting, "log": [line]}
 
 
@@ -112,13 +107,12 @@ def await_listing(state: SellerState) -> dict:
 
 def publish_listing(state: SellerState) -> dict:
     if not state.get("decision", {}).get("list"):
-        return {"log": [_log("•", "Not listed", "Saved as a draft. Nothing was published.")]}
+        return {"log": [_log("•", "Saved as draft")]}
     v, preview = state["vehicle"], state["preview"]
     listing = store.add_listing({**preview, "seller": v.get("seller_name", "Seller"),
                                  "channel": state["paths"]["best"], "condition": state["condition"],
                                  "auction_starts": "Today 2:00 PM", "status": "live"})
-    lines = [_log("✓", f"Listed {listing['id']} on ACV", f"Auction starts {listing['auction_starts']} · "
-                                                         f"expected ${preview['price']:,}")]
+    lines = [_log("✓", f"Listed on ACV · auction {listing['auction_starts']}")]
     acv_buyers = [w for w in state.get("waiting_buyers", []) if w["channel"] == "ACV"]
     for w in acv_buyers:
         store.notify(w["buyer"], f"A {_name(v)} ({v['mileage']:,} mi, grade "
@@ -126,8 +120,7 @@ def publish_listing(state: SellerState) -> dict:
                                  f"{listing['id']}", kind="match")
     if acv_buyers:
         lines.append(_log("📲", f"Messaged {len(acv_buyers)} waiting buyer{'s' * (len(acv_buyers) != 1)} "
-                                "before the auction starts",
-                          ", ".join(w["buyer"] for w in acv_buyers)))
+                                "before the auction"))
     return {"listing": listing, "log": lines}
 
 
@@ -145,9 +138,8 @@ def record_sale(state: SellerState) -> dict:
     store.notify(state["vehicle"].get("seller_name", "Seller"), f"{state['listing']['id']} sold for ${price:,}",
                  kind="seller")
     fees = acv_fees(price, 0)
-    return {"log": [_log("✓", f"Sold for ${price:,}", "Transport and title paperwork start automatically."),
-                    _log("📈", f"ACV earns ${fees['total']:,} on this car, only because it sold",
-                         f"Buyer fee ${fees['buyer_fee']:,} + seller fee ${fees['seller_fee']:,}. An unsold car earns $0.")]}
+    return {"log": [_log("✓", f"Sold for ${price:,}"),
+                    _log("📈", f"ACV earns ${fees['total']:,}, only because it sold")]}
 
 
 def reoffer_unsold(state: SellerState) -> dict:
@@ -157,8 +149,7 @@ def reoffer_unsold(state: SellerState) -> dict:
         store.notify(w["buyer"], f"Re-offered: {_name(v)} ({listing['id']}) did not sell on ACV and is "
                                  f"available to Copart global buyers.", kind="match")
     who = ", ".join(w["buyer"] for w in global_buyers) or "Copart's buyers in 185+ countries"
-    return {"log": [_log("↻", "No sale on ACV, so it was re-offered to Copart's global buyers", who),
-                    _log("✓", "No car left unsold", "Next stop: Copart auction plus export buyers.")]}
+    return {"log": [_log("↻", "No sale on ACV → re-offered to Copart's global buyers", who)]}
 
 
 # --- Routing -----------------------------------------------------------------

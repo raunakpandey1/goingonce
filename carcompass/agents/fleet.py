@@ -22,7 +22,6 @@ from langgraph.types import interrupt
 from .. import store
 from ..fleet import (
     MARKET_DEMAND,
-    PRICE_DROP_PER_EXTRA,
     make_fleet,
     plan_distribution,
     plan_dump_local,
@@ -60,18 +59,16 @@ def intake_fleet(state: FleetState) -> dict:
     by_lot = Counter(c["lot"] for c in cars)
     by_model = Counter(f"{c['make']} {c['model']}" for c in cars)
     return {"cars": cars,
-            "log": [_log("✓", f"Received {len(cars)} cars from {state['fleet_name']}",
-                         " · ".join(f"{n} at {lot}" for lot, n in by_lot.items()) + " | " +
-                         ", ".join(f"{n} {m}" for m, n in by_model.items()) + " (2023, similar condition)")]}
+            "log": [_log("✓", f"Received {len(cars)} similar cars",
+                         " · ".join(f"{n} at {lot}" for lot, n in by_lot.items()))]}
 
 
 def forecast_demand(state: FleetState) -> dict:
     weeks = state["weeks"]
     cap = total_capacity(weeks)
-    return {"log": [_log("✓", f"{len(MARKET_DEMAND)} markets can absorb {cap} similar cars at full price "
-                              f"over {weeks} week{'s' * (weeks != 1)}",
-                         f"Above a market's demand, each extra similar car lowers the price about "
-                         f"{PRICE_DROP_PER_EXTRA:.1%}.")]}
+    return {"log": [_log("✓", f"Checked demand in {len(MARKET_DEMAND)} markets",
+                         f"They absorb {cap} cars at full price over {weeks} week{'s' * (weeks != 1)}; "
+                         f"more floods the market")]}
 
 
 def optimize_distribution(state: FleetState) -> dict:
@@ -82,12 +79,8 @@ def optimize_distribution(state: FleetState) -> dict:
     gain = plan["net"] - dump["net"]
     full_loads = sum(1 for l in plan["loads"] if l["truck"])
     return {"plan": plan, "baselines": {"dump": dump, "single": single}, "routes": routes(plan),
-            "log": [_log("✓", f"Planned {full_loads} truckloads to {plan['markets']} markets over {weeks} "
-                              f"week{'s' * (weeks != 1)}",
-                         f"Transport ${plan['transport_per_car']}/car vs ${single['transport_per_car']}/car shipping "
-                         f"one by one ({1 - plan['transport_per_car'] / max(single['transport_per_car'], 1):.0%} less)."),
-                    _log("✓", f"+${gain:,} vs dumping everything at the local auctions",
-                         f"Average sale ${plan['avg_price']:,} vs ${dump['avg_price']:,} when one market is flooded.")]}
+            "log": [_log("✓", f"Planned {full_loads} full truckloads to {plan['markets']} markets"),
+                    _log("✓", f"+${gain:,} vs dumping at the local auctions")]}
 
 
 def explain_plan(state: FleetState) -> dict:
@@ -100,7 +93,7 @@ def explain_plan(state: FleetState) -> dict:
                "avg_price": plan["avg_price"], "dump_avg_price": b["dump"]["avg_price"],
                "top_routes": [{"from": r["from"], "to": r["to"], "cars": r["cars"]} for r in state["routes"][:6]]}
     text, source = fleet_summary(context, state.get("demo_safe", False))
-    return {"summary": text, "log": [_log("✓", "Wrote the plan summary for the fleet manager", text, ai=source)]}
+    return {"summary": text, "log": [_log("✓", "Plan summary for the fleet manager", text, ai=source)]}
 
 
 def await_approval(state: FleetState) -> dict:
@@ -125,15 +118,12 @@ def schedule_auctions(state: FleetState) -> dict:
         cars = sum(l["cars"] for l in loads)
         trucks = sum(1 for l in loads if l["truck"])
         schedule.append({"week": w, "cars": cars, "trucks": trucks, "markets": markets})
-        lines.append(_log("🗓", f"Week {w}: {cars} cars, {trucks} trucks → {', '.join(markets)}",
-                          "Auctions staggered so no lane sees more similar cars than it can absorb."))
+        lines.append(_log("🗓", f"Week {w}: {cars} cars → {', '.join(markets)}"))
     trucks = sum(1 for l in plan["loads"] if l["truck"])
     fees = acv_fees(plan["avg_price"], plan["transport_per_car"])["total"] * plan["cars"]
-    lines += [_log("🚚", f"Booked {trucks} car haulers", f"${plan['transport']:,} total transport."),
-              _log("📲", f"Alerted waiting buyers in {plan['markets']} markets",
-                   "Dealers with matching saved requests see the cars before their auctions."),
-              _log("📈", f"ACV earns about ${fees:,} in fees as these {plan['cars']} cars sell",
-                   "Fees are earned per sale, so protecting sell-through protects revenue.")]
+    lines += [_log("🚚", f"Booked {trucks} car haulers"),
+              _log("📲", f"Alerted buyers in {plan['markets']} markets"),
+              _log("📈", f"ACV earns about ${fees:,} as these cars sell")]
     store.notify(state["fleet_name"], f"Plan approved: {plan['cars']} cars, {trucks} trucks, "
                                       f"{plan['markets']} markets over {weeks} weeks.", kind="seller")
     return {"schedule": schedule, "log": lines}

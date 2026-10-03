@@ -87,7 +87,7 @@ def plan_distribution(cars: list[dict], weeks: int) -> dict:
                       "transport": int(cost), "revenue": int(revenue), "week": min(first_week, weeks),
                       "truck": m != lot, "car_ids": [c["id"] for c in batch]})
         remaining[lot] = remaining[lot][len(batch):]
-    return _summarize("CarCompass plan", loads)
+    return _summarize("GoingOnce plan", loads)
 
 
 def plan_dump_local(cars: list[dict]) -> dict:

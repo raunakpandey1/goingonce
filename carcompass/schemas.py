@@ -89,7 +89,7 @@ RISK_NOTE_SCHEMA = {
     "type": "object",
     "properties": {
         "headline": {"type": "string", "description": "Under 12 words"},
-        "explanation": {"type": "string", "description": "2-3 short sentences, plain English"},
+        "explanation": {"type": "string", "description": "1-2 short sentences, plain English, under 40 words"},
         "recommendation": {"type": "string", "description": "One sentence: what the buyer should do"},
     },
     "required": ["headline", "explanation", "recommendation"],
@@ -100,8 +100,8 @@ RISK_NOTE_SCHEMA = {
 MEDIATION_SCHEMA = {
     "type": "object",
     "properties": {
-        "to_seller": {"type": "string", "description": "2-3 sentences to the seller, plain English"},
-        "to_buyer": {"type": "string", "description": "1-2 sentences to the buyer, plain English"},
+        "to_seller": {"type": "string", "description": "1-2 sentences to the seller, under 35 words"},
+        "to_buyer": {"type": "string", "description": "1 sentence to the buyer, under 25 words"},
     },
     "required": ["to_seller", "to_buyer"],
     "additionalProperties": False,
@@ -111,7 +111,7 @@ MEDIATION_SCHEMA = {
 FLEET_SUMMARY_SCHEMA = {
     "type": "object",
     "properties": {
-        "summary": {"type": "string", "description": "3 short sentences for a fleet manager, plain English"},
+        "summary": {"type": "string", "description": "2 short sentences for a fleet manager, under 45 words"},
     },
     "required": ["summary"],
     "additionalProperties": False,

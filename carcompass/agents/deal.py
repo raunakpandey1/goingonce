@@ -89,10 +89,9 @@ def assess_gap(state: DealState) -> dict:
         "rounds": [{"round": 0, "seller": state["ask"], "buyer": state["high_bid"]}],
         "messages": [_msg("mediator", f"To seller: {brief['to_seller']}"),
                      _msg("mediator", f"To buyer: {brief['to_buyer']}")],
-        "log": [_log("✓", f"Gap is ${gap:,}: seller asks ${state['ask']:,}, top bid is ${state['high_bid']:,}",
-                     f"Market value ${fv:,} from 3 comparable sales "
-                     f"(${min(x['price'] for x in comps):,}–${max(x['price'] for x in comps):,})."),
-                _log("✓", "Sent both sides a market reality check", brief["to_seller"], ai=source)],
+        "log": [_log("✓", f"Gap: ${gap:,} (ask ${state['ask']:,}, top bid ${state['high_bid']:,})",
+                     f"Similar cars sold for ${min(x['price'] for x in comps):,}–${max(x['price'] for x in comps):,}"),
+                _log("✓", "Reality check sent to the seller", brief["to_seller"], ai=source)],
     }
 
 
@@ -123,8 +122,7 @@ def find_bridge(state: DealState) -> dict:
             "messages": [_msg("mediator", f"Mediator: only ${gap:,} apart. A truck is already returning on this "
                                           f"route, which saves the buyer ${saving:,} on delivery. The buyer can "
                                           f"meet the seller's ${state['seller_now']:,} and still come out ahead.")],
-            "log": [_log("💡", f"Closed the last ${gap:,} with a backhaul truck",
-                         f"A truck already heading that way saves the buyer ${saving:,} on transport.")]}
+            "log": [_log("💡", f"Last ${gap:,} closed: a truck already on this route saves the buyer ${saving:,}")]}
 
 
 def propose_deal(state: DealState) -> dict:
@@ -136,38 +134,26 @@ def propose_deal(state: DealState) -> dict:
     if not isinstance(decision, dict):
         decision = {"accepted": bool(decision)}
     return {"deal": deal, "decision": decision,
-            "log": [_log("🤝", f"Proposed deal: ${price:,}",
-                         f"${deal['from_ask']:,} below the ask, ${deal['from_bid']:,} above the first bid, "
-                         f"in {state['round']} round{'s' * (state['round'] != 1)}.")]}
+            "log": [_log("🤝", f"Deal: ${price:,} in {state['round']} round{'s' * (state['round'] != 1)}")]}
 
 
 def close_deal(state: DealState) -> dict:
     deal = state["deal"]
     if not state.get("decision", {}).get("accepted"):
-        return {"log": [_log("•", "Deal not accepted", "Car goes back to the waiting buyers and the next auction.")]}
+        return {"log": [_log("•", "Deal not accepted")]}
     bridge = state.get("bridge") or {}
     transport = max(0, state["transport"]["cost"] - bridge.get("saving", 0))
     plan = closing_plan(deal["price"], transport, state.get("lien", 0))
     lines = [
-        _log("💳", f"Buyer payment held in escrow: ${plan['buyer_pays']:,}",
-             f"Price ${plan['price']:,} + buyer fee ${plan['acv']['buyer_fee']:,} + transport ${transport:,} + "
-             f"insurance ${plan['insurance_premium']:,}. Released only when title and delivery are confirmed."),
-        _log("🛡", f"Transit insurance bound: ${plan['price']:,} coverage",
-             f"Premium ${plan['insurance_premium']:,}, covers the car from pickup to delivery."),
+        _log("💳", f"Payment held in escrow: ${plan['buyer_pays']:,}", "Released when title and delivery are confirmed"),
+        _log("🛡", f"Transit insurance bound (${plan['insurance_premium']:,})"),
     ]
     if plan["lien_payoff"]:
-        lines.append(_log("🏦", f"Loan payoff of ${plan['lien_payoff']:,} sent straight to the seller's lender",
-                          "The lender releases the title electronically, so it isn't stuck for weeks."))
+        lines.append(_log("🏦", f"Loan of ${plan['lien_payoff']:,} paid straight to the lender", "Title released electronically"))
     lines += [
-        _log("📄", "E-title transfer started", "Buyer gets the title before the car arrives."),
-        _log("🚚", f"Truck booked to {state.get('buyer_city', 'Rochester')}: ${transport:,}",
-             "Pickup tomorrow morning." + (" Uses the backhaul truck." if bridge else "")),
-        _log("💵", f"Seller payout scheduled: ${plan['seller_payout']:,}",
-             f"After the ${plan['acv']['seller_fee']:,} seller fee" +
-             (f" and the ${plan['lien_payoff']:,} loan payoff." if plan["lien_payoff"] else ".")),
-        _log("📈", f"ACV earns ${plan['acv']['total']:,}, only because the car sold",
-             f"Buyer fee ${plan['acv']['buyer_fee']:,} + seller fee ${plan['acv']['seller_fee']:,} + "
-             f"transport margin ${plan['acv']['transport_margin']:,}. Without a deal: $0."),
+        _log("🚚", f"Truck booked: ${transport:,}"),
+        _log("💵", f"Seller gets ${plan['seller_payout']:,}"),
+        _log("📈", f"ACV earns ${plan['acv']['total']:,}, only because the car sold"),
     ]
     store.notify(state.get("seller", "Seller"), f"Deal closed at ${deal['price']:,}. Payout "
                                                 f"${plan['seller_payout']:,} after title release.", kind="seller")
@@ -181,10 +167,8 @@ def no_deal(state: DealState) -> dict:
     gap = state["seller_now"] - state["buyer_now"]
     return {"messages": [_msg("mediator", f"Mediator: still ${gap:,} apart after {state['round']} rounds. "
                                           "Neither side was pushed past its limit.")],
-            "log": [_log("•", f"No deal: still ${gap:,} apart", "Nobody was pushed past their private limit."),
-                    _log("↻", "Next best options lined up",
-                         f"Re-offer to waiting buyers and Copart global buyers, with a suggested "
-                         f"price of ${state['market_value']:,}.")]}
+            "log": [_log("•", f"No deal: still ${gap:,} apart"),
+                    _log("↻", "Re-offered to waiting buyers and Copart's global buyers")]}
 
 
 def after_round(state: DealState) -> str:

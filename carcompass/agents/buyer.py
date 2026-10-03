@@ -67,9 +67,8 @@ def search_marketplaces(state: BuyerState) -> dict:
         searches.append({k: res[k] for k in ("source", "live_count", "skipped")} |
                         {"found": len(res["candidates"])})
         candidates += res["candidates"]
-        what = " ".join(p for p in [req.make, req.model] if p) or "car"
-        lines.append(_log("✓", f"Searched {source}: {res['live_count']} live listings → "
-                               f"{len(res['candidates'])} {what} candidates",
+        lines.append(_log("✓", f"Searched {source}: {res['live_count']} listings → "
+                               f"{len(res['candidates'])} candidate{'s' * (len(res['candidates']) != 1)}",
                           f"Skipped: {_skips(res['skipped'])}"))
     return {"searches": searches, "candidates": candidates, "log": lines}
 
@@ -81,9 +80,8 @@ def check_life_passports(state: BuyerState) -> dict:
         (flagged if passport["status"] == "flagged" else clean).append({**car, "passport": passport})
     n = len(state["candidates"])
     return {"flagged": flagged, "clean": clean,
-            "log": [_log("✓", f"Checked the Life Passport of {n} car{'s' * (n != 1)}",
-                         "Joined ACV inspections, Copart sales and title records by VIN. "
-                         f"{len(flagged)} flagged.")]}
+            "log": [_log("✓", f"Checked the history of {n} car{'s' * (n != 1)}",
+                         "ACV + Copart records joined by VIN")]}
 
 
 def explain_flags(state: BuyerState) -> dict:
@@ -91,8 +89,7 @@ def explain_flags(state: BuyerState) -> dict:
     for car in state["flagged"]:
         note, source = explain_risk(car, car["passport"], state.get("demo_safe", False))
         explained.append({**car, "risk": note.model_dump(), "risk_source": source})
-        lines.append(_log("⚠", f"Excluded {car['year']} {car['make']} {car['model']} ({car['id']}): "
-                               f"{note.headline}", note.explanation, ai=source))
+        lines.append(_log("⚠", f"Excluded {car['id']}: {note.headline}", note.explanation, ai=source))
     return {"flagged": explained, "log": lines}
 
 
@@ -104,14 +101,12 @@ def rank_and_quote(state: BuyerState) -> dict:
         return {"matches": [], "log": [_log("•", "No clean matches yet")]}
     costs = [m["transport"]["cost"] for m in matches]
     days = max(m["transport"]["days"] for m in matches)
-    when = f"all arrive within {days} day{'s' * (days != 1)}"
-    if req.deadline:
-        when += f" (before {req.deadline})"
+    when = f"All arrive before {req.deadline}" if req.deadline else f"All arrive within {days} day{'s' * (days != 1)}"
     cost_text = f"${min(costs):,}" if min(costs) == max(costs) else f"${min(costs):,}–${max(costs):,}"
     return {"matches": matches,
             "log": [_log("✓", f"Found {len(matches)} of {req.quantity} · transport to "
                               f"{req.destination_city} {cost_text} each",
-                         f"Ranked by price vs. market value, condition and delivery cost; {when}.")]}
+                         when)]}
 
 
 def widen_search(state: BuyerState) -> dict:
@@ -154,14 +149,14 @@ def execute(state: BuyerState) -> dict:
         store.add_bids([{"buyer": buyer, "car_id": m["id"], "max_bid": m["recommended_bid"],
                          "transport": m["transport"]} for m in chosen])
         lines.append(_log("✓", f"Placed {len(chosen)} proxy bid{'s' * (len(chosen) != 1)}",
-                          " · ".join(f"{m['id']} up to ${m['recommended_bid']:,}" for m in chosen)))
+                          f"Up to ${sum(m['recommended_bid'] for m in chosen):,} in total"))
         lines.append(_log("✓", f"Booked transport to {req.destination_city}",
                           f"${sum(m['transport']['cost'] for m in chosen):,} total"))
-        lines.append(_log("✓", "Started title checks", "Sellers asked to upload titles now, so cars can leave on time."))
+        lines.append(_log("✓", "Started title checks"))
     elif not state.get("matches"):
-        lines.append(_log("•", "Nothing matches right now", "No bids placed."))
+        lines.append(_log("•", "Nothing matches right now"))
     else:
-        lines.append(_log("•", "No bids placed", "You declined, so nothing was spent."))
+        lines.append(_log("•", "No bids placed"))
 
     remaining = req.quantity - len(chosen)
     wish = None
@@ -170,8 +165,7 @@ def execute(state: BuyerState) -> dict:
                                "make": req.make, "model": req.model, "min_year": req.min_year,
                                "max_year": req.max_year, "max_price": req.max_price,
                                "max_mileage": req.max_mileage, "title": req.title, "quantity": remaining})
-        lines.append(_log("👀", f"Watching ACV + Copart for {remaining} more",
-                          "You'll get a message the moment a matching car is listed, before its auction starts."))
+        lines.append(_log("👀", f"Watching ACV + Copart for {remaining} more"))
     store.notify(buyer, f"{len(chosen)} bids placed" + (f"; watching for {remaining} more" if remaining > 0 else ""),
                  kind="buyer")
     return {"result": {"bids": [m["id"] for m in chosen], "remaining": remaining,

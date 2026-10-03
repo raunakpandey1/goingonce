@@ -1,4 +1,4 @@
-"""CarCompass demo app.
+"""GoingOnce demo app.
 
     .venv/bin/streamlit run app.py
 """
@@ -13,8 +13,6 @@ import uuid
 
 import altair as alt
 import pandas as pd
-from pathlib import Path
-
 import streamlit as st
 from langgraph.types import Command
 from PIL import Image
@@ -24,47 +22,48 @@ from carcompass.agents.buyer import build_buyer_graph
 from carcompass.agents.deal import build_deal_graph
 from carcompass.agents.fleet import build_fleet_graph
 from carcompass.agents.seller import build_seller_graph
-from carcompass.config import MODEL, demo_safe_default, has_api_key
+from carcompass.config import demo_safe_default
 from carcompass.data.catalog import CITIES, MODEL_BASE
 from carcompass.fleet import FLEET_MODELS
 
 PITCH = "Need 5 Camrys, 2018+, under $12K, clean title, delivered to Rochester by Friday."
+BUYER = "Mike's Motors (Rochester)"
+SELLER = "Sarah's Truck Center (Buffalo)"
+PACE = 0.35  # seconds between activity-log lines, so the audience can follow
 
-st.set_page_config(page_title="CarCompass", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="GoingOnce", page_icon="🔨", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
 <style>
-:root { --cc-border: rgba(127,127,127,.28); --cc-soft: rgba(127,127,127,.07); --cc-muted: rgba(127,127,127,.95); }
-.block-container { padding-top: 2.2rem; max-width: 1250px; }
-.cc-hero h1 { font-size: 2.1rem; margin: 0 0 .1rem 0; }
-.cc-hero p { margin: 0 0 .6rem 0; opacity: .8; font-size: 1.05rem; }
-.cc-log { border: 1px solid var(--cc-border); border-radius: 12px; padding: .5rem .9rem; background: var(--cc-soft); }
-.cc-line { display: flex; gap: .65rem; padding: .42rem 0; border-bottom: 1px dashed var(--cc-border); }
+:root { --cc-border: rgba(127,127,127,.28); --cc-soft: rgba(127,127,127,.07); }
+.block-container { padding-top: 2rem; max-width: 1250px; }
+.cc-hero h1 { font-size: 2.1rem; margin: 0; }
+.cc-hero p { margin: 0 0 .5rem 0; opacity: .75; font-size: 1.05rem; }
+.cc-log { border: 1px solid var(--cc-border); border-radius: 12px; padding: .4rem .9rem; background: var(--cc-soft); margin-bottom: .8rem; }
+.cc-line { display: flex; gap: .65rem; padding: .38rem 0; border-bottom: 1px dashed var(--cc-border); }
 .cc-line:last-child { border-bottom: none; }
 .cc-icon { width: 1.4rem; text-align: center; font-weight: 700; color: #1a7f37; flex-shrink: 0; }
 .cc-icon.warn { color: #cf222e; } .cc-icon.info { color: #8250df; }
 .cc-text { font-weight: 600; } .cc-detail { font-size: .86rem; opacity: .75; margin-top: .1rem; }
-.cc-ai { font-size: .7rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; vertical-align: middle; }
-.cc-ai.live { background: rgba(130,80,223,.16); color: #8250df; } .cc-ai.saved { background: rgba(127,127,127,.16); }
-.cc-card { border: 1px solid var(--cc-border); border-radius: 14px; padding: .9rem 1rem; height: 100%; background: var(--cc-soft); }
+.cc-ai { font-size: .68rem; font-weight: 800; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem;
+         vertical-align: middle; background: rgba(130,80,223,.16); color: #8250df; }
+.cc-card { border: 1px solid var(--cc-border); border-radius: 14px; padding: .9rem 1rem; background: var(--cc-soft); }
 .cc-card.bad { border: 2px solid #cf222e; background: rgba(207,34,46,.06); }
 .cc-badge { font-size: .72rem; font-weight: 800; padding: .12rem .5rem; border-radius: 6px; color: white; }
 .cc-badge.ACV { background: #0969da; } .cc-badge.Copart { background: #d4720b; }
-.cc-sub { font-size: .78rem; opacity: .7; margin-left: .35rem; }
-.cc-title { font-size: 1.12rem; font-weight: 700; margin: .45rem 0 .1rem 0; }
+.cc-title { font-size: 1.08rem; font-weight: 700; margin: .45rem 0 .1rem 0; }
 .cc-price { font-size: 1.35rem; font-weight: 800; } .cc-price span { font-size: .8rem; font-weight: 500; opacity: .7; }
 .cc-meta { font-size: .86rem; opacity: .85; margin-top: .15rem; }
 .cc-ok { color: #1a7f37; font-weight: 700; font-size: .88rem; margin-top: .45rem; }
-.cc-bad { color: #cf222e; font-weight: 800; font-size: .88rem; letter-spacing: .02em; }
-.cc-bid { margin-top: .5rem; padding-top: .45rem; border-top: 1px dashed var(--cc-border); font-size: .9rem; }
-.cc-banner { border-radius: 12px; padding: .75rem 1rem; font-weight: 700; background: rgba(26,127,55,.12); border: 1px solid rgba(26,127,55,.35); }
-.cc-ask { border-radius: 12px; padding: .8rem 1rem; font-weight: 700; font-size: 1.05rem; background: rgba(9,105,218,.10); border: 1px solid rgba(9,105,218,.35); margin: .6rem 0; }
-.cc-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
-.cc-table th, .cc-table td { padding: .45rem .5rem; border-bottom: 1px solid var(--cc-border); text-align: right; }
+.cc-bad { color: #cf222e; font-weight: 800; font-size: .88rem; margin-top: .5rem; }
+.cc-banner { border-radius: 12px; padding: .7rem 1rem; font-weight: 700; background: rgba(26,127,55,.12);
+             border: 1px solid rgba(26,127,55,.35); margin: .8rem 0 .3rem 0; }
+.cc-ask { border-radius: 12px; padding: .75rem 1rem; font-weight: 700; font-size: 1.05rem;
+          background: rgba(9,105,218,.10); border: 1px solid rgba(9,105,218,.35); margin: .6rem 0; }
+.cc-table { width: 100%; border-collapse: collapse; font-size: .92rem; margin-top: .3rem; }
+.cc-table th, .cc-table td { padding: .45rem .5rem; border-bottom: 1px solid var(--cc-border); text-align: right; white-space: nowrap; }
 .cc-table th:first-child, .cc-table td:first-child { text-align: left; white-space: normal; }
-.cc-table td, .cc-table th { white-space: nowrap; }
 .cc-table tr.best td { font-weight: 800; background: rgba(26,127,55,.12); }
-.cc-note { font-size: .8rem; opacity: .7; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -78,14 +77,10 @@ def graphs():
 
 BUYER_GRAPH, SELLER_GRAPH, DEAL_GRAPH, FLEET_GRAPH = graphs()
 ss = st.session_state
-ss.setdefault("buyer", None)
-ss.setdefault("seller", None)
-ss.setdefault("buyer_action", None)
-ss.setdefault("seller_action", None)
-ss.setdefault("deal", None)
-ss.setdefault("deal_action", None)
-ss.setdefault("fleet", None)
-ss.setdefault("fleet_action", None)
+RUNS = ("buyer", "seller", "deal", "fleet")
+for k in RUNS:
+    ss.setdefault(k, None)
+    ss.setdefault(f"{k}_action", None)
 
 
 def esc(s) -> str:
@@ -93,8 +88,8 @@ def esc(s) -> str:
 
 
 def line_html(line: dict) -> str:
-    cls = "warn" if line["icon"] == "⚠" else "info" if line["icon"] in ("↻", "👀", "🔔", "📲", "•") else ""
-    ai = f'<span class="cc-ai {line["ai"]}">{"live AI" if line["ai"] == "live" else "saved AI"}</span>' if line.get("ai") else ""
+    cls = "warn" if line["icon"] == "⚠" else "info" if line["icon"] in ("↻", "👀", "🔔", "📲", "•", "↔") else ""
+    ai = '<span class="cc-ai">AI</span>' if line.get("ai") else ""
     detail = f'<div class="cc-detail">{esc(line["detail"])}</div>' if line.get("detail") else ""
     return (f'<div class="cc-line"><div class="cc-icon {cls}">{esc(line["icon"])}</div>'
             f'<div><div class="cc-text">{esc(line["text"])}{ai}</div>{detail}</div></div>')
@@ -107,7 +102,6 @@ def render_log(box, lines: list[dict]) -> None:
 
 def run_stream(graph, payload, config, run: dict, box) -> None:
     """Stream graph updates, animating each new activity line into `box`."""
-    pace = ss.get("pace", 0.6)
     for chunk in graph.stream(payload, config, stream_mode="updates"):
         for node, update in chunk.items():
             if node == "__interrupt__":
@@ -116,215 +110,146 @@ def run_stream(graph, payload, config, run: dict, box) -> None:
             for line in (update or {}).get("log", []):
                 run["log"].append(line)
                 render_log(box, run["log"])
-                time.sleep(pace)
+                time.sleep(ss.get("pace", PACE))
     state = graph.get_state(config)
     run["values"] = state.values
     if not state.next:
         run["pending"] = None
 
 
-def stars(grade: float) -> str:
-    return f"★ {grade:.1f}"
+def setter(key: str, value: str):
+    def _set():
+        ss[key] = value
+    return _set
 
 
-def timeline_md(timeline: list[dict]) -> str:
-    return "\n".join(f"- **{e['date']}** · {e['source']} · {e['event']}: {e['detail']}" for e in timeline)
+def take_action(name: str):
+    action = ss[f"{name}_action"]
+    ss[f"{name}_action"] = None
+    return action
 
 
 def shrink(upload) -> dict:
     """Resize a photo to ≤1568px and re-encode as JPEG for the API."""
-    img = Image.open(upload)
-    img = img.convert("RGB")
+    img = Image.open(upload).convert("RGB")
     img.thumbnail((1568, 1568))
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=85)
     return {"b64": base64.b64encode(buf.getvalue()).decode(), "media_type": "image/jpeg"}
 
 
-# --- Sidebar -----------------------------------------------------------------
+def timeline_md(timeline: list[dict]) -> str:
+    return "\n".join(f"- **{e['date']}** · {e['source']} · {e['event']}" for e in timeline)
+
+
+MODEL_NAMES = sorted(f"{mk} {m}" for mk, m in MODEL_BASE)
+
+
+def split_model(label: str) -> tuple[str, str]:
+    return next((mk, m) for mk, m in MODEL_BASE if f"{mk} {m}" == label)
+
+
+# --- Sidebar (presenter controls only) ----------------------------------------
 
 with st.sidebar:
-    st.markdown("## 🧭 CarCompass")
-    st.caption("ACV + Copart · AI for Good Hackathon")
     ss.setdefault("demo_safe", demo_safe_default())
-    st.toggle("Demo-safe mode", key="demo_safe",
-              help="Replays saved AI results, so the demo works even if Wi-Fi or the AI service fails.")
-    if ss.demo_safe:
-        st.info("Using saved AI results (no network).", icon="💾")
-    elif has_api_key():
-        st.success(f"Live AI: {MODEL}", icon="⚡")
-    else:
-        st.warning("No API key found. Using saved AI results.", icon="🔑")
-    st.slider("Agent step delay (s)", 0.0, 1.5, 0.6, 0.1, key="pace")
-    st.divider()
+    st.toggle("Demo-safe mode", key="demo_safe", help="Uses saved AI results. Turn on if the Wi-Fi is bad.")
     if st.button("↺ Reset demo", use_container_width=True):
         store.reset()
-        for k in ("buyer", "seller", "buyer_action", "seller_action", "deal", "deal_action", "fleet", "fleet_action"):
+        for k in RUNS:
             ss[k] = None
+            ss[f"{k}_action"] = None
         st.rerun()
-    st.caption("Demo data: 310 synthetic ACV + Copart listings. Bids, trucks and messages are simulated.")
+
+st.markdown('<div class="cc-hero"><h1>🔨 GoingOnce</h1>'
+            '<p>Every car finds its best buyer, across ACV and Copart.</p></div>', unsafe_allow_html=True)
+
+tab_buy, tab_sell, tab_deal, tab_fleet = st.tabs(["🛒 Buy", "📸 Sell", "🤝 Negotiate", "🚚 Fleet"])
 
 
-st.markdown('<div class="cc-hero"><h1>🧭 CarCompass</h1>'
-            '<p>Every car finds its best buyer, across ACV <b>and</b> Copart.</p></div>', unsafe_allow_html=True)
-
-tab_buy, tab_sell, tab_deal, tab_fleet, tab_inbox, tab_how = st.tabs(
-    ["🛒 Buyer's Agent", "📸 Sell in one photo", "🤝 Close the gap", "🚚 Fleet", "🔔 Agent inbox", "🧠 How it works"])
-
-
-# --- Buyer tab ---------------------------------------------------------------
-
-def start_buyer():
-    ss.buyer_action = "start"
-
-
-def approve_buyer():
-    ss.buyer_action = "approve"
-
-
-def decline_buyer():
-    ss.buyer_action = "decline"
-
+# --- Buy -----------------------------------------------------------------------
 
 with tab_buy:
-    left, right = st.columns([5, 2])
-    with left:
-        st.text_area("Tell the agent what you need, in plain words (any language)", PITCH, key="buyer_text", height=90)
-    with right:
-        st.text_input("Your dealership", "Mike's Motors (Rochester)", key="buyer_name")
-        st.button("🤖 Send to agent", type="primary", use_container_width=True, on_click=start_buyer)
+    left, right = st.columns([5, 1.4])
+    left.text_area("What do you need?", PITCH, key="buyer_text", height=80)
+    right.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+    right.button("▶ Send to agent", type="primary", use_container_width=True, on_click=setter("buyer_action", "start"))
 
-    action = ss.buyer_action
-    ss.buyer_action = None
+    action = take_action("buyer")
     if action == "start":
         ss.buyer = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {}}
-
     run = ss.buyer
     if run:
-        st.markdown("#### Agent activity")
         box = st.empty()
         render_log(box, run["log"])
         config = {"configurable": {"thread_id": run["thread"]}}
         if action == "start":
-            run_stream(BUYER_GRAPH, {"request_text": ss.buyer_text, "buyer_name": ss.buyer_name,
-                                     "demo_safe": ss.demo_safe}, config, run, box)
+            run_stream(BUYER_GRAPH, {"request_text": ss.buyer_text, "buyer_name": BUYER, "demo_safe": ss.demo_safe},
+                       config, run, box)
         elif action in ("approve", "decline") and run["pending"]:
             run_stream(BUYER_GRAPH, Command(resume={"approved": action == "approve"}), config, run, box)
 
         values = run["values"]
-        matches, flagged = values.get("matches", []), values.get("flagged", [])
-        if matches or flagged:
-            st.markdown("#### Results")
-            cards = matches + flagged
-            for i in range(0, len(cards), 4):
-                cols = st.columns(4)
-                for col, car in zip(cols, cards[i:i + 4]):
-                    with col:
-                        bad = car.get("passport", {}).get("status") == "flagged"
-                        head = (f'<span class="cc-badge {car["source"]}">{car["source"]}</span>'
-                                f'<span class="cc-sub">{car["id"]} · ends {esc(car["auction_ends"].replace("Today ", ""))}</span>')
-                        body = (f'<div class="cc-title">{car["year"]} {car["make"]} {car["model"]} {esc(car["trim"])}</div>'
-                                f'<div class="cc-price">${car["price"]:,} <span>market ${car["market_value"]:,}</span></div>'
-                                f'<div class="cc-meta">{car["mileage"]:,} mi · {stars(car["condition_grade"])} · '
-                                f'{car["city"]}, {car["state"]}</div>')
-                        if bad:
-                            risk = car.get("risk", {})
-                            extra = (f'<div class="cc-bad" style="margin-top:.5rem">⚠ HIDDEN HISTORY CAUGHT</div>'
-                                     f'<div class="cc-meta"><b>{esc(risk.get("headline", ""))}</b></div>'
-                                     f'<div class="cc-meta">{esc(risk.get("recommendation", ""))}</div>')
-                            st.markdown(f'<div class="cc-card bad">{head}{body}{extra}</div>', unsafe_allow_html=True)
-                        else:
-                            t = car["transport"]
-                            n = len(car["passport"]["timeline"])
-                            extra = (f'<div class="cc-meta">🚚 ${t["cost"]:,} to {values["request"]["destination_city"]} · '
-                                     f'{t["days"]} day{"s" * (t["days"] != 1)}</div>'
-                                     f'<div class="cc-ok">✅ History clean ({n} record{"s" * (n != 1)})</div>'
-                                     f'<div class="cc-bid">Bid up to <b>${car["recommended_bid"]:,}</b></div>')
-                            st.markdown(f'<div class="cc-card">{head}{body}{extra}</div>', unsafe_allow_html=True)
-                        with st.expander("Life Passport"):
-                            if bad and car.get("risk"):
-                                st.markdown(car["risk"]["explanation"])
-                            st.markdown(timeline_md(car["passport"]["timeline"]))
+        cards = values.get("matches", []) + values.get("flagged", [])
+        for i in range(0, len(cards), 4):
+            for col, car in zip(st.columns(4), cards[i:i + 4]):
+                with col:
+                    bad = car["passport"]["status"] == "flagged"
+                    body = (f'<span class="cc-badge {car["source"]}">{car["source"]}</span>'
+                            f'<div class="cc-title">{car["year"]} {car["make"]} {car["model"]}</div>'
+                            f'<div class="cc-price">${car["price"]:,} <span>market ${car["market_value"]:,}</span></div>'
+                            f'<div class="cc-meta">{car["mileage"]:,} mi · ★ {car["condition_grade"]:.1f} · {car["city"]}</div>')
+                    if bad:
+                        body += (f'<div class="cc-bad">⚠ HIDDEN HISTORY CAUGHT</div>'
+                                 f'<div class="cc-meta">{esc(car.get("risk", {}).get("headline", ""))}</div>')
+                    else:
+                        t = car["transport"]
+                        body += (f'<div class="cc-meta">🚚 ${t["cost"]:,} · {t["days"]} day{"s" * (t["days"] != 1)}</div>'
+                                 f'<div class="cc-ok">✅ History clean</div>'
+                                 f'<div class="cc-meta">Bid up to <b>${car["recommended_bid"]:,}</b></div>')
+                    st.markdown(f'<div class="cc-card{" bad" if bad else ""}">{body}</div>', unsafe_allow_html=True)
+                    with st.expander("History"):
+                        st.markdown(timeline_md(car["passport"]["timeline"]))
 
         if run["pending"]:
-            st.markdown(f'<div class="cc-ask">🤖 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="cc-ask">💬 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
             a, b, _ = st.columns([2, 1, 3])
-            a.button(f"✅ Approve: bid up to ${run['pending']['total']:,}", type="primary",
-                     use_container_width=True, on_click=approve_buyer)
-            b.button("Not now", use_container_width=True, on_click=decline_buyer)
-        elif values.get("result"):
-            res = values["result"]
-            if res["bids"]:
-                st.success(f"Bids placed on {len(res['bids'])} cars · Truck booked · Title checks started", icon="✅")
-            if res["remaining"]:
-                st.info(f"Watching ACV + Copart for {res['remaining']} more. Try listing a Camry in "
-                        "**📸 Sell in one photo**: this buyer will be waiting for it.", icon="👀")
+            a.button(f"✅ Approve: bid up to ${run['pending']['total']:,}", type="primary", use_container_width=True,
+                     on_click=setter("buyer_action", "approve"))
+            b.button("Not now", use_container_width=True, on_click=setter("buyer_action", "decline"))
+        elif values.get("result", {}).get("bids"):
+            st.success(f"Bids placed on {len(values['result']['bids'])} cars · Truck booked · Title checks started",
+                       icon="✅")
 
 
-# --- Seller tab --------------------------------------------------------------
-
-def start_seller():
-    ss.seller_action = "start"
-
-
-def list_now():
-    ss.seller_action = "list"
-
-
-def keep_draft():
-    ss.seller_action = "draft"
-
-
-def sold():
-    ss.seller_action = "sold"
-
-
-def no_sale():
-    ss.seller_action = "nosale"
-
+# --- Sell ----------------------------------------------------------------------
 
 with tab_sell:
     form_col, out_col = st.columns([2, 3], gap="large")
     with form_col:
-        st.markdown("#### Your car")
         c1, c2 = st.columns(2)
         year = c1.number_input("Year", 2005, 2026, 2019, key="s_year")
         mileage = c2.number_input("Mileage", 0, 400000, 61000, step=1000, key="s_miles")
-        model_names = sorted(f"{mk} {m}" for mk, m in MODEL_BASE)
-        mm = st.selectbox("Make & model", model_names, index=model_names.index("Toyota Camry"), key="s_model")
-        c3, c4 = st.columns(2)
-        trim = c3.text_input("Trim", "SE", key="s_trim")
-        city = c4.selectbox("Location", list(CITIES), index=0, key="s_city")
-        st.text_input("Dealership", "Sarah's Truck Center (Buffalo)", key="s_seller")
-        lot_fit = st.checkbox("I usually sell cars like this on my lot", value=False, key="s_fit")
-        photos = st.file_uploader("Car photos (2–4 work best)", type=["jpg", "jpeg", "png", "webp"],
-                                  accept_multiple_files=True, key="s_photos")
+        mm = st.selectbox("Make & model", MODEL_NAMES, index=MODEL_NAMES.index("Toyota Camry"), key="s_model")
+        city = st.selectbox("Location", list(CITIES), index=0, key="s_city")
+        photos = st.file_uploader("Car photos", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True,
+                                  key="s_photos")
         if photos:
-            st.image([p for p in photos[:4]], width=110)
-        else:
-            st.caption("No photos? The agent uses a saved sample report.")
-        st.button("📸 Analyze & find buyers", type="primary", use_container_width=True, on_click=start_seller)
+            st.image(list(photos[:4]), width=100)
+        st.button("📸 Analyze & find buyers", type="primary", use_container_width=True,
+                  on_click=setter("seller_action", "start"))
 
     with out_col:
-        action = ss.seller_action
-        ss.seller_action = None
+        action = take_action("seller")
         if action == "start":
-            make, model = next((mk, m) for mk, m in MODEL_BASE if f"{mk} {m}" == mm)
+            make, model = split_model(mm)
             ss.seller = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {},
-                         "vehicle": {"year": int(year), "make": make, "model": model, "trim": trim,
+                         "vehicle": {"year": int(year), "make": make, "model": model, "trim": "",
                                      "mileage": int(mileage), "city": city, "title_status": "clean",
-                                     "seller_name": ss.s_seller, "lot_fit": lot_fit},
+                                     "seller_name": SELLER, "lot_fit": False},
                          "photos": [shrink(p) for p in (photos or [])[:4]]}
         run = ss.seller
-        if not run:
-            st.markdown("#### What the agent does")
-            st.markdown("1. **Reads your photos** and writes the condition report\n"
-                        "2. **Compares every way to sell** with real dollar amounts\n"
-                        "3. **Finds buyers already waiting** for a car like yours\n"
-                        "4. **Lists it in one tap** and messages those buyers before the auction\n"
-                        "5. **If it doesn't sell**, re-offers it to Copart's global buyers")
-        else:
-            st.markdown("#### Agent activity")
+        if run:
             box = st.empty()
             render_log(box, run["log"])
             config = {"configurable": {"thread_id": run["thread"]}}
@@ -340,119 +265,68 @@ with tab_sell:
             cond = values.get("condition")
             if cond:
                 with st.container(border=True):
-                    st.markdown(f"**AI condition report** · grade **{cond['condition_grade']:.1f}/5**"
-                                + ("" if values.get("condition_source") == "live" else "  ·  _saved sample_"))
+                    st.markdown(f"**AI condition report · {cond['condition_grade']:.1f}/5**")
                     st.write(cond["summary"])
-                    d1, d2 = st.columns(2)
-                    d1.markdown("**Visible damage**\n" + "\n".join(f"- {d}" for d in cond["visible_damage"] or ["None seen"]))
-                    d2.markdown(f"**Tires:** {cond['tires']}  \n**Interior:** {cond['interior']}  \n"
-                                f"**Looks like:** {cond['detected_vehicle']}")
-                    if cond.get("notes"):
-                        st.caption(f"Check in person: {cond['notes']}")
+                    if cond["visible_damage"]:
+                        st.caption("Damage: " + " · ".join(cond["visible_damage"]))
             paths = values.get("paths")
             if paths:
                 rows = "".join(
-                    f'<tr class="{"best" if r["best"] else ""}"><td>{"✅ " if r["best"] else ""}{r["channel"]}'
-                    f'<div class="cc-note">{r["note"]}</div></td><td>${r["gross"]:,}</td>'
-                    f'<td>−${r["fees"] + r["transport"] + r["holding"]:,}</td><td>{r["days"]} days</td>'
-                    f'<td><b>${r["net"]:,}</b></td></tr>' for r in paths["rows"])
-                st.markdown("**Where you make the most money**")
-                st.markdown(f'<table class="cc-table"><tr><th>Option</th><th>Sale</th><th>Costs</th>'
-                            f'<th>Wait</th><th>You keep</th></tr>{rows}</table>'
-                            '<div class="cc-note">Costs = fees + transport + $28/day while the car waits to sell.</div>', unsafe_allow_html=True)
+                    f'<tr class="{"best" if r["best"] else ""}"><td>{"✅ " if r["best"] else ""}{r["channel"]}</td>'
+                    f'<td>${r["gross"]:,}</td><td>−${r["fees"] + r["transport"] + r["holding"]:,}</td>'
+                    f'<td>{r["days"]} days</td><td><b>${r["net"]:,}</b></td></tr>' for r in paths["rows"])
+                st.markdown(f'<table class="cc-table"><tr><th>Option</th><th>Sale</th><th>Costs</th><th>Wait</th>'
+                            f'<th>You keep</th></tr>{rows}</table>', unsafe_allow_html=True)
             waiting = values.get("waiting_buyers")
-            if waiting is not None and "preview" in values:
-                if waiting:
-                    st.markdown(f'<div class="cc-banner" style="margin-top:.8rem">🔔 {len(waiting)} buyer'
-                                f'{"s are" if len(waiting) != 1 else " is"} already waiting for a car like this</div>',
-                                unsafe_allow_html=True)
-                    for w in waiting:
-                        budget = f" · up to ${w['max_price']:,}" if w.get("max_price") else ""
-                        st.caption(f"• {w['buyer']} · {w['channel']}{budget}")
+            if waiting:
+                st.markdown(f'<div class="cc-banner">🔔 {len(waiting)} buyer{"s" if len(waiting) != 1 else ""} '
+                            f'already waiting for this car</div>', unsafe_allow_html=True)
+                st.caption(" · ".join(w["buyer"] for w in waiting))
             pending = run["pending"]
             if pending and "best" in pending:
                 a, b, _ = st.columns([2, 1, 2])
-                a.button("🚀 List now", type="primary", use_container_width=True, on_click=list_now,
-                         help=f"Lists via {pending['best']}")
-                b.button("Save draft", use_container_width=True, on_click=keep_draft)
+                a.button("🚀 List now", type="primary", use_container_width=True, on_click=setter("seller_action", "list"))
+                b.button("Save draft", use_container_width=True, on_click=setter("seller_action", "draft"))
             elif pending and "listing_id" in pending:
-                st.markdown(f'<div class="cc-ask">⏱ {pending["listing_id"]} is live. Simulate the auction result:</div>',
-                            unsafe_allow_html=True)
+                st.markdown('<div class="cc-ask">⏱ Auction result?</div>', unsafe_allow_html=True)
                 a, b, _ = st.columns([1, 1, 2])
-                a.button("✅ Sold", use_container_width=True, on_click=sold)
-                b.button("✖ No sale", use_container_width=True, on_click=no_sale)
+                a.button("✅ Sold", use_container_width=True, on_click=setter("seller_action", "sold"))
+                b.button("✖ No sale", use_container_width=True, on_click=setter("seller_action", "nosale"))
             elif values.get("auction", {}).get("sold") is False:
                 st.success("No car left unsold: re-offered to Copart's global buyers.", icon="🌍")
             elif values.get("auction", {}).get("sold"):
                 st.success("Sold. Transport and title paperwork started.", icon="✅")
 
 
-# --- Close-the-gap tab -------------------------------------------------------
-
-def start_deal():
-    ss.deal_action = "start"
-
-
-def accept_deal():
-    ss.deal_action = "accept"
-
-
-def walk_away():
-    ss.deal_action = "walk"
-
-
-AVATARS = {"mediator": ("Mediator", "🧭"), "seller": ("Seller's agent", "🏷️"), "buyer": ("Buyer's agent", "💰")}
+# --- Negotiate -------------------------------------------------------------------
 
 with tab_deal:
-    st.caption("The seller wants more than the top bid. Each side tells its own agent a private limit; "
-               "an AI mediator closes the gap with market data, then the deal closes itself.")
     in_col, out_col = st.columns([2, 3], gap="large")
     with in_col:
-        with st.expander("Car: 2020 Toyota Camry LE · 52,000 mi · Buffalo", expanded=False):
-            c1, c2 = st.columns(2)
-            d_year = c1.number_input("Year", 2005, 2026, 2020, key="d_year")
-            d_miles = c2.number_input("Mileage", 0, 400000, 52000, step=1000, key="d_miles")
-            d_models = sorted(f"{mk} {m}" for mk, m in MODEL_BASE)
-            d_mm = st.selectbox("Make & model", d_models, index=d_models.index("Toyota Camry"), key="d_model")
-            d_grade = st.slider("Condition grade", 1.0, 5.0, 4.0, 0.1, key="d_grade")
-        st.markdown("**🏷️ Seller**")
+        st.markdown("**2020 Toyota Camry · 52,000 mi**")
+        st.markdown("🏷️ **Seller**")
         a, b = st.columns(2)
-        d_ask = a.number_input("Asking price ($)", 1000, 200000, 15000, step=250, key="d_ask")
-        d_min = b.number_input("Private minimum ($)", 1000, 200000, 12800, step=250, key="d_min",
-                               help="Only the seller's own agent knows this.")
-        d_lien = st.number_input("Loan still owed on the car ($)", 0, 100000, 5000, step=500, key="d_lien")
-        st.markdown("**💰 Buyer**")
+        d_ask = a.number_input("Asking price", 1000, 200000, 15000, step=250, key="d_ask")
+        d_min = b.number_input("Lowest OK (private)", 1000, 200000, 12800, step=250, key="d_min")
+        d_lien = st.number_input("Loan still owed", 0, 100000, 5000, step=500, key="d_lien")
+        st.markdown("💰 **Buyer**")
         a, b = st.columns(2)
-        d_bid = a.number_input("Top bid ($)", 1000, 200000, 12000, step=250, key="d_bid")
-        d_max = b.number_input("Private maximum ($)", 1000, 200000, 13400, step=250, key="d_max",
-                               help="Only the buyer's own agent knows this.")
-        d_buyer_city = st.selectbox("Buyer location", list(CITIES), index=list(CITIES).index("Rochester"), key="d_city")
-        st.button("🤝 Start AI negotiation", type="primary", use_container_width=True, on_click=start_deal)
+        d_bid = a.number_input("Top bid", 1000, 200000, 12000, step=250, key="d_bid")
+        d_max = b.number_input("Highest OK (private)", 1000, 200000, 13400, step=250, key="d_max")
+        st.button("🤝 Start AI negotiation", type="primary", use_container_width=True,
+                  on_click=setter("deal_action", "start"))
 
     with out_col:
-        action = ss.deal_action
-        ss.deal_action = None
+        action = take_action("deal")
         if action == "start":
-            make, model = next((mk, m) for mk, m in MODEL_BASE if f"{mk} {m}" == d_mm)
             ss.deal = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {},
-                       "payload": {"car": {"year": int(d_year), "make": make, "model": model, "trim": "",
-                                           "mileage": int(d_miles), "grade": float(d_grade), "city": "Buffalo"},
-                                   "seller": "Sarah's Truck Center (Buffalo)", "buyer": "Mike's Motors (Rochester)",
-                                   "buyer_city": d_buyer_city, "ask": int(d_ask), "seller_min": int(d_min),
-                                   "high_bid": int(d_bid), "buyer_max": int(d_max), "lien": int(d_lien),
-                                   "demo_safe": ss.demo_safe}}
+                       "payload": {"car": {"year": 2020, "make": "Toyota", "model": "Camry", "trim": "",
+                                           "mileage": 52000, "grade": 4.0, "city": "Buffalo"},
+                                   "seller": SELLER, "buyer": BUYER, "buyer_city": "Rochester",
+                                   "ask": int(d_ask), "seller_min": int(d_min), "high_bid": int(d_bid),
+                                   "buyer_max": int(d_max), "lien": int(d_lien), "demo_safe": ss.demo_safe}}
         run = ss.deal
-        if not run:
-            st.markdown("#### What the agents do")
-            st.markdown("1. **Reality check:** compare the ask with recent sales and the cost of waiting\n"
-                        "2. **Negotiate in rounds:** seller's agent and buyer's agent move toward each other, "
-                        "never past their private limits\n"
-                        "3. **Bridge the last gap:** e.g. a truck already heading that way lowers delivery cost\n"
-                        "4. **Close automatically:** escrow payment, transit insurance, loan payoff, e-title, truck, "
-                        "seller payout\n\n"
-                        "ACV earns its fees **only when the car sells**, so every closed gap is revenue.")
-        else:
-            st.markdown("#### Agent activity")
+        if run:
             box = st.empty()
             render_log(box, run["log"])
             config = {"configurable": {"thread_id": run["thread"]}}
@@ -466,92 +340,50 @@ with tab_deal:
             if len(rounds) > 1:
                 df = pd.DataFrame(rounds).rename(columns={"seller": "Seller", "buyer": "Buyer"})
                 df = df.melt("round", var_name="side", value_name="offer")
-                st.markdown("**Offers by round** (the gap closing)")
                 chart = alt.Chart(df).mark_line(point=True, strokeWidth=3).encode(
                     x=alt.X("round:O", title="Round", axis=alt.Axis(labelAngle=0)),
-                    y=alt.Y("offer:Q", title="Offer ($)", scale=alt.Scale(zero=False)),
+                    y=alt.Y("offer:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="$,.0f")),
                     color=alt.Color("side:N", title=None,
-                                    scale=alt.Scale(domain=["Seller", "Buyer"], range=["#0969da", "#d4720b"])),
-                    tooltip=["side", "round", alt.Tooltip("offer:Q", format="$,")])
-                st.altair_chart(chart.properties(height=220), use_container_width=True)
-            if values.get("messages"):
-                with st.expander("Negotiation chat", expanded=not run["pending"] is None):
-                    for m in values["messages"]:
-                        name, avatar = AVATARS[m["who"]]
-                        with st.chat_message(name, avatar=avatar):
-                            st.write(m["text"])
+                                    scale=alt.Scale(domain=["Seller", "Buyer"], range=["#0969da", "#d4720b"])))
+                st.altair_chart(chart.properties(height=200), use_container_width=True)
             if run["pending"]:
                 st.markdown(f'<div class="cc-ask">🤝 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
                 a, b, _ = st.columns([2, 1, 2])
-                a.button(f"✅ Both accept ${run['pending']['price']:,}", type="primary",
-                         use_container_width=True, on_click=accept_deal)
-                b.button("Walk away", use_container_width=True, on_click=walk_away)
+                a.button(f"✅ Both accept ${run['pending']['price']:,}", type="primary", use_container_width=True,
+                         on_click=setter("deal_action", "accept"))
+                b.button("Walk away", use_container_width=True, on_click=setter("deal_action", "walk"))
             closing = values.get("closing")
             if closing:
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Deal price", f"${closing['price']:,}", f"+${closing['price'] - values['high_bid']:,} vs bid")
-                m2.metric("Seller payout", f"${closing['seller_payout']:,}", help="After the seller fee and loan payoff")
-                m3.metric("Buyer pays", f"${closing['buyer_pays']:,}",
-                          help="All-in: price, buyer fee, transport and insurance, held in escrow")
-                m4.metric("ACV earns", f"${closing['acv']['total']:,}", "sale-only fees")
-                st.success("Deal closed: payment in escrow, insurance bound, loan paid off, title moving, truck booked.",
-                           icon="✅")
-            elif values.get("deal") is None and values.get("round") and not run["pending"]:
-                st.info("No deal this time. Nobody was pushed past their limit, and the car goes to the next "
-                        "best buyers.", icon="↻")
+                m2.metric("Seller gets", f"${closing['seller_payout']:,}")
+                m3.metric("Buyer pays", f"${closing['buyer_pays']:,}")
+                m4.metric("ACV earns", f"${closing['acv']['total']:,}")
+                st.success("Deal closed: payment, insurance, loan payoff, title and truck handled.", icon="✅")
+            elif values.get("round") and values.get("deal") is None and not run["pending"]:
+                st.info("No deal. Nobody was pushed past their limit.", icon="↻")
 
 
-# --- Fleet tab ---------------------------------------------------------------
-
-def start_fleet():
-    ss.fleet_action = "start"
-
-
-def approve_fleet():
-    ss.fleet_action = "approve"
-
-
-def reject_fleet():
-    ss.fleet_action = "reject"
-
-
-FLEET_LABELS = [f"{mk} {m}" for mk, m in FLEET_MODELS]
+# --- Fleet -----------------------------------------------------------------------
 
 with tab_fleet:
-    st.caption("Rental companies sell hundreds of similar 2–3-year-old cars at once. Flooding one auction crushes the "
-               "price, and shipping cars one by one eats the margin. The fleet agent spreads the cars across markets "
-               "and sends full car-hauler loads.")
     in_col, out_col = st.columns([2, 3], gap="large")
     with in_col:
-        st.text_input("Fleet seller", "Rental fleet (demo)", key="f_name")
         f_count = st.slider("Cars to sell", 30, 240, 120, 10, key="f_count")
-        f_lots = st.multiselect("Fleet lots (where the cars are now)", list(CITIES),
-                                default=["Buffalo", "Rochester", "Albany"], key="f_lots")
-        f_models = st.multiselect("Models (2023, similar condition)", FLEET_LABELS, default=FLEET_LABELS[:3],
-                                  key="f_models")
-        f_weeks = st.slider("Sell over how many weeks", 1, 4, 2, key="f_weeks")
-        st.button("🚚 Plan distribution", type="primary", use_container_width=True, on_click=start_fleet,
-                  disabled=not (f_lots and f_models))
+        f_lots = st.multiselect("Fleet lots", list(CITIES), default=["Buffalo", "Rochester", "Albany"], key="f_lots")
+        f_weeks = st.slider("Weeks", 1, 4, 2, key="f_weeks")
+        st.button("🚚 Plan distribution", type="primary", use_container_width=True,
+                  on_click=setter("fleet_action", "start"), disabled=not f_lots)
 
     with out_col:
-        action = ss.fleet_action
-        ss.fleet_action = None
+        action = take_action("fleet")
         if action == "start":
             ss.fleet = {"thread": uuid.uuid4().hex, "log": [], "pending": None, "values": {},
-                        "payload": {"fleet_name": ss.f_name, "count": int(f_count), "lots": list(f_lots),
-                                    "models": [list(FLEET_MODELS[FLEET_LABELS.index(m)]) for m in f_models],
-                                    "weeks": int(f_weeks), "demo_safe": ss.demo_safe}}
+                        "payload": {"fleet_name": "Rental fleet", "count": int(f_count), "lots": list(f_lots),
+                                    "models": [list(m) for m in FLEET_MODELS[:3]], "weeks": int(f_weeks),
+                                    "demo_safe": ss.demo_safe}}
         run = ss.fleet
-        if not run:
-            st.markdown("#### What the agent does")
-            st.markdown("1. **Takes in the batch:** how many cars, which models, which lots\n"
-                        "2. **Forecasts demand:** how many similar cars each market absorbs at full price\n"
-                        "3. **Optimizes distribution:** full truckloads (9 cars) to nearby markets with demand, "
-                        "spread over the weeks\n"
-                        "4. **Compares** against dumping at the local auction and shipping one by one\n"
-                        "5. **After approval:** staggers auctions, books car haulers, alerts waiting buyers")
-        else:
-            st.markdown("#### Agent activity")
+        if run:
             box = st.empty()
             render_log(box, run["log"])
             config = {"configurable": {"thread_id": run["thread"]}}
@@ -563,109 +395,32 @@ with tab_fleet:
             values = run["values"]
             plan, base = values.get("plan"), values.get("baselines")
             if plan and base:
-                trucks = sum(1 for l in plan["loads"] if l["truck"])
-                m1, m2, m3, m4 = st.columns(4)
                 gain = plan["net"] - base["dump"]["net"]
-                m1.metric("Extra vs dumping", f"+${gain / 1000:,.0f}K", f"+{plan['net'] / base['dump']['net'] - 1:.0%}",
-                          help=f"+${gain:,} more for the fleet than selling everything at the local auctions")
+                trucks = sum(1 for l in plan["loads"] if l["truck"])
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Extra vs dumping", f"+${gain / 1000:,.0f}K", f"+{plan['net'] / base['dump']['net'] - 1:.0%}")
                 m2.metric("Transport / car", f"${plan['transport_per_car']}",
                           f"-${base['single']['transport_per_car'] - plan['transport_per_car']} vs 1-by-1",
                           delta_color="inverse")
-                m3.metric("Truckloads", trucks, f"vs {base['single']['trucks']} solo", delta_color="off",
-                          help=f"{trucks} full car-hauler loads instead of {base['single']['trucks']} single-car moves")
-                m4.metric("Markets", plan["markets"], help="Destination markets used")
+                m3.metric("Truckloads", trucks)
                 rows = "".join(
                     f'<tr class="{"best" if p is plan else ""}"><td>{"✅ " if p is plan else ""}{p["name"]}</td>'
                     f'<td>${p["avg_price"]:,}</td><td>${p["transport_per_car"]:,}</td><td><b>${p["net"]:,}</b></td></tr>'
                     for p in (base["dump"], base["single"], plan))
                 st.markdown(f'<table class="cc-table"><tr><th>Plan</th><th>Avg sale</th><th>Transport/car</th>'
-                            f'<th>Net to fleet</th></tr>{rows}</table>', unsafe_allow_html=True)
+                            f'<th>Net</th></tr>{rows}</table>', unsafe_allow_html=True)
                 bars = pd.DataFrame([{"market": l["to"], "week": f"Week {l['week']}", "cars": l["cars"]}
                                      for l in plan["loads"]])
-                st.markdown("**Where the cars go**")
                 st.altair_chart(alt.Chart(bars).mark_bar().encode(
                     x=alt.X("sum(cars):Q", title="Cars"),
-                    y=alt.Y("market:N", sort="-x", title=None),
-                    color=alt.Color("week:N", title=None, scale=alt.Scale(range=["#0969da", "#d4720b", "#8250df", "#1a7f37"])),
-                    tooltip=["market", "week", "sum(cars)"]).properties(height=230), use_container_width=True)
-                with st.expander("Routes (lot → market)"):
-                    st.dataframe(pd.DataFrame([{"From": r["from"], "To": r["to"], "Cars": r["cars"],
-                                                "Trucks": r["trucks"], "Miles": r["miles"], "$ per car": r["per_car"],
-                                                "When": r["weeks"]} for r in values["routes"]]),
-                                 hide_index=True, use_container_width=True)
+                    y=alt.Y("market:N", sort="-x", title=None, axis=alt.Axis(labelOverlap=False, labelLimit=140)),
+                    color=alt.Color("week:N", title=None,
+                                    scale=alt.Scale(range=["#0969da", "#d4720b", "#8250df", "#1a7f37"]))
+                ).properties(height=240), use_container_width=True)
             if run["pending"]:
-                st.markdown(f'<div class="cc-ask">🚚 {esc(run["pending"]["question"])}</div>', unsafe_allow_html=True)
                 a, b, _ = st.columns([2, 1, 2])
-                a.button("✅ Approve plan", type="primary", use_container_width=True, on_click=approve_fleet)
-                b.button("Not now", use_container_width=True, on_click=reject_fleet)
+                a.button("✅ Approve plan", type="primary", use_container_width=True,
+                         on_click=setter("fleet_action", "approve"))
+                b.button("Not now", use_container_width=True, on_click=setter("fleet_action", "reject"))
             elif values.get("schedule"):
-                st.success("Plan approved: auctions staggered, car haulers booked, waiting buyers alerted.", icon="✅")
-
-
-# --- Inbox tab ---------------------------------------------------------------
-
-with tab_inbox:
-    state = store.load()
-    a, b = st.columns(2)
-    with a:
-        st.markdown("#### 📲 Messages sent by the agents")
-        if not state["notifications"]:
-            st.caption("Nothing yet. Run the buyer or seller agent.")
-        for n in state["notifications"][:20]:
-            icon = {"match": "🔔", "buyer": "🛒", "seller": "📸"}.get(n["kind"], "•")
-            st.markdown(f"{icon} **To {n['to']}** · {n['created']}  \n{n['text']}")
-    with b:
-        st.markdown("#### 👀 Buyer requests the agents are watching")
-        for w in reversed(state["wishes"]):
-            what = " ".join(p for p in [w.get("make"), w.get("model")] if p) or "any car"
-            bits = [f"{w.get('quantity', 1)}× {what}"]
-            if w.get("min_year"):
-                bits.append(f"{w['min_year']}+")
-            if w.get("max_price"):
-                bits.append(f"≤ ${w['max_price']:,}")
-            st.markdown(f"**{w['buyer']}** · {w.get('channel', 'ACV')}  \n{' · '.join(bits)}")
-        if state["bids"]:
-            st.markdown("#### 🧾 Proxy bids placed")
-            for bid in state["bids"]:
-                st.caption(f"{bid['buyer']}: {bid['car_id']} up to ${bid['max_bid']:,}")
-
-
-# --- How it works tab --------------------------------------------------------
-
-GRAPH_DIR = Path(__file__).resolve().parent / "docs" / "graphs"
-
-
-def show_graph(name: str, graph) -> None:
-    png = GRAPH_DIR / f"{name}.png"
-    if png.exists():
-        st.image(str(png), use_container_width=True)
-    else:  # regenerate with scripts/export_graphs.py
-        st.code(graph.get_graph().draw_mermaid(), language="text")
-
-
-with tab_how:
-    st.markdown("#### Four LangGraph agents, one shared memory")
-    st.markdown(
-        "- **Buyer's agent:** understands a plain-English request → searches ACV + Copart → checks every car's "
-        "**Life Passport** → explains anything suspicious → ranks and quotes transport → **waits for your approval** "
-        "→ bids, books the truck, starts title checks, and keeps watching for the rest.\n"
-        "- **Seller's agent:** reads the photos → compares every way to sell → finds **buyers already waiting** → "
-        "lists in one tap and messages them → if there's no sale, re-offers to Copart's global buyers.\n"
-        "- **Deal agent:** when the ask is above the top bid, a mediator negotiates in rounds between the seller's "
-        "and buyer's agents (each keeps its private limit), bridges the last gap, then closes the deal: escrow "
-        "payment, transit insurance, loan payoff, e-title, truck, payout. ACV earns only when the car sells.\n"
-        "- **Fleet agent:** takes a rental fleet's batch of similar cars, forecasts what each market absorbs, and "
-        "sends full truckloads to nearby markets over the weeks, so prices hold and transport stays low.\n"
-        "- **Shared memory:** the buyer's unfilled request becomes a saved wish that the seller's agent matches against.")
-    st.markdown("**Where AI is used (Claude):** understanding requests in any language · reading car photos · "
-                "explaining flagged histories.  \n**Plain code (repeatable):** search, history checks, pricing, "
-                "transport, matching.  \n**Safety:** nothing is spent or listed without a human tap; demo-safe mode "
-                "replays saved AI results.")
-    graph_list = [("Buyer's agent", "buyer_agent", BUYER_GRAPH), ("Seller's agent", "seller_agent", SELLER_GRAPH),
-                  ("Deal agent", "deal_agent", DEAL_GRAPH), ("Fleet agent", "fleet_agent", FLEET_GRAPH)]
-    for col, (title, name, graph) in zip(st.columns(4), graph_list):
-        with col:
-            st.markdown(f"**{title}**")
-            show_graph(name, graph)
-    st.caption("Demo data is synthetic. In production the same tools would call ACV and Copart's inventory, "
-               "inspection and title systems.")
+                st.success("Approved: auctions staggered, car haulers booked, buyers alerted.", icon="✅")

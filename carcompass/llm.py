@@ -171,10 +171,8 @@ def saved_risk_note(car: dict, passport: dict) -> RiskNote:
         when = loss["date"][:4] if loss else "the past"
         return RiskNote(
             headline=f"Hidden {what} history: title was washed",
-            explanation=(f"Copart sold this {car['year']} {car['model']} as salvage after a {what} "
-                         f"total loss in {when}. It was re-titled in another state, and the clean "
-                         f"title hides that. Today's inspection notes ('{car['inspection_notes']}') "
-                         f"fit a cosmetic cleanup, not a documented repair."),
+            explanation=(f"Sold as salvage on Copart after a {what} total loss in {when}, then re-titled "
+                         f"clean in another state. New carpet and fresh paint suggest a cover-up."),
             recommendation="Skip it, or demand repair records and an underbody inspection before bidding.",
         )
     return RiskNote(
@@ -243,9 +241,8 @@ def mediation_brief(context: dict, demo_safe: bool) -> tuple[dict, str]:
     comps = context["comparable_sales"]
     lo, hi = min(c["price"] for c in comps), max(c["price"] for c in comps)
     return {
-        "to_seller": (f"Similar cars sold for ${lo:,}–${hi:,} in the last few weeks, so ${context['ask']:,} "
-                      f"is above what buyers are paying. Each week unsold costs you about "
-                      f"${context['waiting_cost_per_week']:,} in holding costs and lost value."),
+        "to_seller": (f"Similar cars sold for ${lo:,}–${hi:,}, so ${context['ask']:,} is above market. "
+                      f"Each week unsold costs about ${context['waiting_cost_per_week']:,}."),
         "to_buyer": (f"The seller has room to move. Market value is about ${context['market_value']:,}, "
                      f"so an offer closer to that is likely to close today."),
     }, "saved"
@@ -267,8 +264,6 @@ def fleet_summary(context: dict, demo_safe: bool) -> tuple[str, str]:
         except (LLMUnavailable, ValueError, KeyError) as e:
             log.warning("fleet_summary fallback: %s", e)
     top = ", ".join(r["to"] for r in context["top_routes"][:3])
-    return (f"Your {context['cars']} cars go to {context['markets']} markets, mostly {top}, so no single "
-            f"auction gets more similar cars than it can absorb at full price. That earns about "
-            f"${context['gain_vs_dump']:,} more than selling everything at your local lanes. Grouping cars into "
-            f"{context['trucks']} full truckloads keeps transport near ${context['transport_per_car']} per car "
-            f"instead of ${context['one_by_one_transport_per_car']} shipping them one by one."), "saved"
+    return (f"Spreading {context['cars']} cars across {context['markets']} markets, mostly {top}, keeps prices "
+            f"up and earns ${context['gain_vs_dump']:,} more than selling locally. Full truckloads cost "
+            f"${context['transport_per_car']} per car instead of ${context['one_by_one_transport_per_car']}."), "saved"

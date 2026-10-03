@@ -34,8 +34,7 @@ def test_full_demo_click_through():
     assert any("Bids placed on 3 cars" in s.value for s in at.success)
 
     click(at, "Analyze")
-    waiting = [c.value for c in at.caption if c.value.startswith("•")]
-    assert any("Mike's Motors" in w for w in waiting)  # the buyer tab's unfilled request is waiting
+    assert any("Mike's Motors" in c.value for c in at.caption)  # the buyer tab's unfilled request is waiting
 
     click(at, "🚀 List now")
     click(at, "No sale")
@@ -49,4 +48,4 @@ def test_full_demo_click_through():
     click(at, "Plan distribution")
     assert any("Approve plan" in b.label for b in at.button)
     click(at, "Approve plan")
-    assert any("Plan approved" in s.value for s in at.success)
+    assert any("Approved" in s.value for s in at.success)

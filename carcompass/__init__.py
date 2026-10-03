@@ -1,1 +1,1 @@
-"""CarCompass: every car finds its best buyer, across ACV and Copart."""
+"""GoingOnce: every car finds its best buyer, across ACV and Copart."""
