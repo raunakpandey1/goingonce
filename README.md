@@ -2,6 +2,8 @@
 
 **Every car finds its best buyer, across ACV and Copart.**
 
+![GoingOnce assistant inside an ACV-style marketplace](docs/screenshots/platform.png)
+
 Four AI agents built with **LangGraph** and **Claude Opus 5.5**, one tab each:
 
 | Tab | What the agent does |
@@ -38,30 +40,6 @@ For frontend development: `.venv/bin/uvicorn api:app --port 8000` in one termina
 
 ---
 
-## 2.5-minute demo
-
-**Before you go on:** Reset demo · open the 📸 Sell tab and upload 1–2 car photos (JPG) · go back to 🛒 Buy.
-
-| Time | Do | Say |
-|---|---|---|
-| **0:00** | 🛒 **Buy** → **Send to agent** | "A Rochester dealer needs 5 Camrys. Instead of scrolling thousands of listings, he just says it." |
-| 0:10 | (log runs ~10 s) point at the red card | "It searched ACV and Copart and checked every car's history. This one looks like the best deal, but it was flooded and sold as salvage on Copart, then re-titled clean. Only ACV + Copart together can see that." |
-| 0:35 | **Approve** | "Nothing is spent without the dealer's tap. It found 3 of 5, so it keeps watching for 2 more." |
-| **0:45** | 📸 **Sell** → **Analyze & find buyers** | "A Buffalo dealer sells a Camry from photos." |
-| 0:55 | (~10 s) table + banner | "AI wrote the condition report. ACV auction keeps her the most money, and 3 buyers are already waiting, including the dealer we just saw." |
-| 1:10 | **List now** | "Listed, and the waiting buyers are messaged before the auction starts. More cars sell, and ACV only earns when a car sells." |
-| **1:20** | 🤝 **Negotiate** → **Start AI negotiation** | "Seller wants $15,000, the top bid is $12,000. Each side's agent keeps a private limit." |
-| 1:30 | (~7 s) point at the chart | "The mediator shows real comparable sales. They meet in 3 rounds, and a truck already on the route closes the last $50." |
-| 1:45 | **Both accept** | "Then it closes itself: payment in escrow, insurance, the loan paid off so the title isn't stuck, truck booked, and ACV earns its fee." |
-| **2:00** | 🚚 **Fleet** → **Plan distribution** | "A rental fleet sells 120 similar cars. Dump them locally and prices crash; ship one by one and it's $320 a car." |
-| 2:10 | (~5 s) metrics | "Full truckloads to 7 markets over 2 weeks: $349K more, $108 a car." |
-| **2:25** | stop | |
-
-**Short on time?** Skip 🚚 Fleet and say its one line.
-**Wi-Fi bad?** Turn on Demo-safe mode. Everything works the same with saved AI results.
-
----
-
 ## What's real and what's simulated
 
 | Real | Simulated |
@@ -70,16 +48,7 @@ For frontend development: `.venv/bin/uvicorn api:app --port 8000` in one termina
 | Four LangGraph agents with human approval steps, loops, and shared memory | Bids, payments, insurance, trucks and messages (saved locally, nothing is sent) |
 | History checks: hidden salvage and odometer rollback | Prices, ACV fees, market demand and truck costs (simple, illustrative formulas) |
 
-If a judge asks: *"Demo data. In production the same tools would call ACV and Copart's inventory, inspection and title systems."*
-
-## ACV mentor feedback → what we built
-
-| Mentor said | What we built |
-|---|---|
-| ACV makes money only when a car sells | Every agent pushes sell-through; the app shows ACV's fee appearing only on a sale |
-| Fleets bring big volumes; minimize transport | 🚚 Fleet agent: full truckloads, demand-aware distribution, staggered weeks |
-| Seller wants $15K, top bid $12K | 🤝 Negotiate agent: private limits, mediated rounds, backhaul bridge |
-| Automate insurance and payment | Deal closing: escrow, transit insurance, loan payoff + e-title, truck, payout |
+In production, the same tools would call ACV and Copart's inventory, inspection and title systems.
 
 ---
 
