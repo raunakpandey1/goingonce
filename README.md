@@ -83,6 +83,7 @@ tests/                      24 tests, including a click-through of every tab and
 .venv/bin/python -m pytest -q        # all tests
 ```
 
+
 ## Troubleshooting
 - **iPhone photos won't upload:** HEIC isn't supported. Use JPG or a screenshot.
 - **AI slow:** turn on Demo-safe mode.
