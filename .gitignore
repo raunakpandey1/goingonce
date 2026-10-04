@@ -18,3 +18,8 @@ deck/node_modules/
 
 # Office lock files
 ~$*
+
+# Personal planning notes (kept locally)
+PLAN.md
+UB_AI_Hackathon_Game_Plan.md
+CarCompass_Idea.md
