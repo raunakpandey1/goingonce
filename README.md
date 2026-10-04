@@ -2,6 +2,8 @@
 
 **Every car finds its best buyer, across ACV and Copart.**
 
+Built at the **AI for Good Hackathon Design Challenge** (University at Buffalo, October 2026) for the **ACV Auctions + Copart** challenge.
+
 ![GoingOnce assistant inside an ACV-style marketplace](docs/screenshots/platform.png)
 
 Four AI agents built with **LangGraph** and **Claude Opus 5.5**, one tab each:
