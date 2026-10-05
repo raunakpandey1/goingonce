@@ -2,7 +2,7 @@
 
 **Every car finds its best buyer, across ACV and Copart.**
 
-Built at the **AI for Good Hackathon Design Challenge** (University at Buffalo, October 2026) for the **ACV Auctions + Copart** challenge.
+🏆 **1st place** in the **ACV Auctions + Copart** challenge at the **AI for Good Hackathon Design Challenge** (University at Buffalo, October 2026).
 
 ![GoingOnce assistant inside an ACV-style marketplace](docs/screenshots/platform.png)
 
@@ -14,6 +14,19 @@ Four AI agents built with **LangGraph** and **Claude Opus 5.5**, one tab each:
 | 📸 **Sell** | Photos in. AI writes the condition report, shows where the seller keeps the most money, and finds **buyers already waiting**. One tap lists it. No sale → re-offered to Copart's global buyers. |
 | 🤝 **Negotiate** | Seller asks $15,000, top bid is $12,000. Each side's agent keeps a private limit; a mediator closes the gap in rounds, then the deal **closes itself**: escrow payment, insurance, loan payoff, title, truck. |
 | 🚚 **Fleet** | A rental fleet sells 120 similar cars. The agent spreads them across markets in **full truckloads**, so prices hold and transport stays low. |
+
+## 🏆 Winning team
+
+GoingOnce won **1st place** in the ACV Auctions challenge at **AI for Good, Fall 2026**, hosted by the University at Buffalo's Startup and Innovation Collaboratory.
+
+**Team:** Raunak Kumar Pandey, Vedant Shinde, Aniket Khade, Jay Pathare
+
+![Team GoingOnce receiving the ACV Auctions First Place award](docs/photos/first_place_acv.jpg)
+
+<p align="center">
+  <img src="docs/photos/team_ub.jpg" alt="Team GoingOnce at the University at Buffalo" width="48%" />
+  <img src="docs/photos/ai_for_good_fall_2026.jpg" alt="AI for Good, Fall 2026, at the University at Buffalo" width="48%" />
+</p>
 
 ---
 
